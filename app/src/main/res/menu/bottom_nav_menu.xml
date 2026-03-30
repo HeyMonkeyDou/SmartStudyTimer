@@ -1,0 +1,21 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/home"
+        android:title="Home"
+        android:icon="@drawable/ic_alarm"/>
+
+    <item
+        android:id="@+id/statistics"
+        android:title="Statistics"
+        android:icon="@drawable/ic_today"/>
+
+    <item
+        android:id="@+id/monitor"
+        android:title="Focus Monitor"
+        android:icon="@drawable/ic_dark_mode"/>
+
+    <item
+        android:id="@+id/profile"
+        android:title="Profile"
+        android:icon="@drawable/ic_account"/>
+</menu>
