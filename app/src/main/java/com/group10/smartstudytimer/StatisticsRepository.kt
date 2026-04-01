@@ -92,7 +92,7 @@ class StatisticsRepository(
     override fun recordSession(record: StudySessionRecord) {
         val sessions = getRecordedSessions().toMutableList()
         sessions.add(record)
-        saveSessions(sessions)
+        saveSessions(sessions, syncMode = SessionSyncMode.ADD_ONE, addedSession = record)
     }
 
     override fun recordCompletedSession(
@@ -181,36 +181,60 @@ class StatisticsRepository(
         }.sortedBy { it.endedAtEpochMillis }
     }
 
-    fun uploadCurrentStatisticsToFirebase(
-        snapshotDate: LocalDate = LocalDate.now(),
-        month: YearMonth = YearMonth.from(snapshotDate),
-        onSuccess: () -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        val statistics = getStatisticsSnapshot(snapshotDate, month)
-        firebaseRepository.saveCurrentStudyStatistics(
-            statistics = statistics,
-            onSuccess = onSuccess,
-            onError = onError
-        )
-    }
-
-    fun loadCurrentStatisticsFromFirebase(
-        onSuccess: (StudyStatistics?) -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        firebaseRepository.loadCurrentStudyStatistics(
-            onSuccess = onSuccess,
-            onError = onError
-        )
-    }
-
     private fun saveSessions(sessions: List<StudySessionRecord>) {
+        saveSessions(sessions, syncMode = SessionSyncMode.REPLACE_ALL)
+    }
+
+    fun syncLocalSessionsFromFirebase(
+        onSuccess: (() -> Unit)? = null,
+        onError: ((Exception) -> Unit)? = null
+    ) {
+        firebaseRepository.loadCurrentStudySessions(
+            onSuccess = { sessions ->
+                val syncedSessions = sessions.orEmpty().sortedBy { it.endedAtEpochMillis }
+                saveSessions(syncedSessions, syncMode = SessionSyncMode.NONE)
+                onSuccess?.invoke()
+            },
+            onError = { error ->
+                onError?.invoke(error)
+            }
+        )
+    }
+
+    private fun saveSessions(
+        sessions: List<StudySessionRecord>,
+        syncMode: SessionSyncMode,
+        addedSession: StudySessionRecord? = null
+    ) {
         val jsonArray = JSONArray()
         sessions.forEach { session ->
             jsonArray.put(session.toJson())
         }
         preferences.edit().putString(SESSIONS_KEY, jsonArray.toString()).apply()
+        when (syncMode) {
+            SessionSyncMode.NONE -> Unit
+            SessionSyncMode.REPLACE_ALL -> syncSessionsToFirebase(sessions)
+            SessionSyncMode.ADD_ONE -> {
+                val session = addedSession ?: return
+                syncSessionToFirebase(session)
+            }
+        }
+    }
+
+    private fun syncSessionsToFirebase(sessions: List<StudySessionRecord>) {
+        firebaseRepository.saveCurrentStudySessions(
+            sessions = sessions,
+            onSuccess = {},
+            onError = {}
+        )
+    }
+
+    private fun syncSessionToFirebase(session: StudySessionRecord) {
+        firebaseRepository.addCurrentStudySession(
+            session = session,
+            onSuccess = {},
+            onError = {}
+        )
     }
 
     companion object {
@@ -224,6 +248,12 @@ class StatisticsRepository(
             }
         }
     }
+}
+
+private enum class SessionSyncMode {
+    NONE,
+    REPLACE_ALL,
+    ADD_ONE
 }
 
 object StatisticsAggregator {

@@ -12,6 +12,10 @@ import java.util.Locale
 
 class Home : Fragment() {
 
+    private val statisticsRepository: StatisticsRepository by lazy {
+        StatisticsRepository.getInstance(requireContext())
+    }
+
     private lateinit var homeContainer: LinearLayout
     private lateinit var radioGroupMode: RadioGroup
     private lateinit var radioNormal: RadioButton
@@ -188,6 +192,7 @@ class Home : Fragment() {
                             startTimer()
                             return
                         } else {
+                            recordCompletedSession()
                             tvStatus.text = "Pomodoro finished!"
                             Toast.makeText(requireContext(), "All Pomodoro rounds completed!", Toast.LENGTH_SHORT).show()
                         }
@@ -203,6 +208,7 @@ class Home : Fragment() {
                         return
                     }
                 } else {
+                    recordCompletedSession()
                     tvStatus.text = "Normal timer finished!"
                     Toast.makeText(requireContext(), "Timer finished!", Toast.LENGTH_SHORT).show()
                 }
@@ -215,6 +221,25 @@ class Home : Fragment() {
         timerRunning = true
         updateButtons()
         updateUIState()
+    }
+
+    private fun recordCompletedSession() {
+        val studyMinutes = if (isPomodoroMode) {
+            (studyDurationInMillis / 60000L) * totalRounds
+        } else {
+            initialTimeInMillis / 60000L
+        }
+
+        statisticsRepository.recordSession(
+            StudySessionRecord(
+                studyMinutes = studyMinutes,
+                interruptionCount = distractionCount.toLong(),
+                interruptedMinutes = 0,
+                completedSessions = if (isPomodoroMode) totalRounds.toLong() else 1L,
+                status = StudySessionStatus.COMPLETED,
+                mode = if (isPomodoroMode) StudySessionMode.POMODORO else StudySessionMode.NORMAL
+            )
+        )
     }
 
     private fun pauseTimer() {
