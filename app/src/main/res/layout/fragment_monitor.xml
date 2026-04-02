@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp"
+    android:padding="48dp"
     android:gravity="top|center_horizontal">
 
     <!-- Title -->
@@ -25,24 +25,27 @@
         android:layout_marginBottom="32dp">
 
         <TextView
+            android:id="@+id/tvDate"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Today: March 29, 2026"
+            android:text="Today:"
             android:textStyle="bold"
             android:layout_marginBottom="32dp"/>
 
         <TextView
+            android:id="@+id/tvStars"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⭐️⭐️⭐️⭐️⭐️"
+            android:text="⭐⭐⭐⭐⭐"
             android:textSize="32sp"
             android:textStyle="bold"
             android:layout_marginBottom="32dp"/>
 
         <TextView
+            android:id="@+id/tvFocusLevel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Focus Level: Great"
+            android:text="Focus Level:"
             android:textSize="26sp"
             android:textStyle="bold"
             android:layout_marginBottom="32dp"/>
@@ -57,27 +60,31 @@
         android:layout_marginBottom="32dp">
 
         <TextView
+            android:id="@+id/tvSessionTime"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Session Time: 01:00:00"
+            android:text="Session Time:"
             android:layout_marginBottom="32dp"/>
 
         <TextView
+            android:id="@+id/tvInterruptedCount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Interrupted Count: 0"
+            android:text="Interrupted Count:"
             android:layout_marginBottom="32dp"/>
 
         <TextView
+            android:id="@+id/tvPickupCount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Pickup Count: 0"
+            android:text="Pickup Count:"
             android:layout_marginBottom="32dp"/>
 
         <TextView
+            android:id="@+id/tvPhoneUseCount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Phone-use Count: 0"
+            android:text="Phone-use Count:"
             android:layout_marginBottom="32dp"/>
 
     </LinearLayout>
