@@ -265,7 +265,9 @@ class Home : Fragment(), SensorEventListener {
         timerRunning = true
 
         if (isPomodoroMode && !isBreakTime) {
-            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
+            accelerometer?.let { sensor ->
+                sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            }
         }
 
         updateButtons()
