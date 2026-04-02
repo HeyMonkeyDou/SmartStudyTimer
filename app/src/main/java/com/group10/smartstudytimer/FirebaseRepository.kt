@@ -163,92 +163,164 @@ class FirebaseRepository(
             .addOnFailureListener { error -> onError(error) }
     }
 
-    fun saveCurrentStudyStatistics(
-        statistics: StudyStatistics,
+    fun saveCurrentStudySessions(
+        sessions: List<StudySessionRecord>,
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
         ensureAnonymousUser(
-            onSuccess = { uid ->
-                saveStudyStatistics(
-                    statistics = statistics.copy(uid = uid),
-                    onSuccess = onSuccess,
-                    onError = onError
+            onSuccess = { uid -> saveStudySessions(uid, sessions, onSuccess, onError) },
+            onError = onError
+        )
+    }
+
+    fun saveStudySessions(
+        uid: String,
+        sessions: List<StudySessionRecord>,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        deleteStudySessions(
+            uid = uid,
+            onSuccess = {
+                if (sessions.isEmpty()) {
+                    onSuccess()
+                    return@deleteStudySessions
+                }
+
+                val batch = firestore.batch()
+                batch.set(
+                    sessionRootDocument(uid),
+                    hashMapOf(
+                        "sessionCount" to sessions.size,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
                 )
+                sessions.forEach { session ->
+                    val document = sessionDocuments(uid).document(session.sessionId)
+                    batch.set(
+                        document,
+                        session.toFirestoreMap().apply { put("updatedAt", FieldValue.serverTimestamp()) }
+                    )
+                }
+                batch.commit()
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { error -> onError(error) }
             },
             onError = onError
         )
     }
 
-    fun saveStudyStatistics(
-        statistics: StudyStatistics,
+    fun addCurrentStudySession(
+        session: StudySessionRecord,
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        val payload = statistics.toFirestoreMap().apply {
-            put("updatedAt", FieldValue.serverTimestamp())
-        }
-
-        firestore.collection(STATISTICS_COLLECTION)
-            .document(statistics.uid)
-            .set(payload)
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { error -> onError(error) }
-    }
-
-    fun loadCurrentStudyStatistics(
-        onSuccess: (StudyStatistics?) -> Unit,
-        onError: (Exception) -> Unit
-    ) {
         ensureAnonymousUser(
-            onSuccess = { uid -> loadStudyStatistics(uid, onSuccess, onError) },
+            onSuccess = { uid -> addStudySession(uid, session, onSuccess, onError) },
             onError = onError
         )
     }
 
-    fun loadStudyStatistics(
+    fun addStudySession(
         uid: String,
-        onSuccess: (StudyStatistics?) -> Unit,
+        session: StudySessionRecord,
+        onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        firestore.collection(STATISTICS_COLLECTION)
-            .document(uid)
+        val batch = firestore.batch()
+        batch.set(
+            sessionRootDocument(uid),
+            hashMapOf(
+                "updatedAt" to FieldValue.serverTimestamp()
+            ),
+            com.google.firebase.firestore.SetOptions.merge()
+        )
+        batch.set(
+            sessionDocuments(uid).document(session.sessionId),
+            session.toFirestoreMap().apply { put("updatedAt", FieldValue.serverTimestamp()) }
+        )
+        batch.commit()
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { error -> onError(error) }
+    }
+
+    fun loadCurrentStudySessions(
+        onSuccess: (List<StudySessionRecord>?) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureAnonymousUser(
+            onSuccess = { uid -> loadStudySessions(uid, onSuccess, onError) },
+            onError = onError
+        )
+    }
+
+    fun loadStudySessions(
+        uid: String,
+        onSuccess: (List<StudySessionRecord>?) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        sessionDocuments(uid)
+            .orderBy("endedAtEpochMillis", Query.Direction.ASCENDING)
             .get()
-            .addOnSuccessListener { snapshot ->
-                if (snapshot.exists()) {
-                    onSuccess(snapshot.toStudyStatistics())
-                } else {
+            .addOnSuccessListener { querySnapshot ->
+                if (querySnapshot.isEmpty) {
                     onSuccess(null)
+                } else {
+                    onSuccess(querySnapshot.documents.map { it.toStudySessionRecord() })
                 }
             }
             .addOnFailureListener { error -> onError(error) }
     }
 
-    fun deleteCurrentStudyStatistics(
+    fun deleteCurrentStudySessions(
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
         ensureAnonymousUser(
-            onSuccess = { uid -> deleteStudyStatistics(uid, onSuccess, onError) },
+            onSuccess = { uid -> deleteStudySessions(uid, onSuccess, onError) },
             onError = onError
         )
     }
 
-    fun deleteStudyStatistics(
+    fun deleteStudySessions(
         uid: String,
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        firestore.collection(STATISTICS_COLLECTION)
-            .document(uid)
-            .delete()
-            .addOnSuccessListener { onSuccess() }
+        sessionDocuments(uid)
+            .get()
+            .addOnSuccessListener { querySnapshot ->
+                if (querySnapshot.isEmpty) {
+                    sessionRootDocument(uid)
+                        .delete()
+                        .addOnSuccessListener { onSuccess() }
+                        .addOnFailureListener { error -> onError(error) }
+                    return@addOnSuccessListener
+                }
+
+                val batch = firestore.batch()
+                querySnapshot.documents.forEach { document ->
+                    batch.delete(document.reference)
+                }
+                batch.delete(sessionRootDocument(uid))
+                batch.commit()
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { error -> onError(error) }
+            }
             .addOnFailureListener { error -> onError(error) }
     }
 
     companion object {
         private const val USERS_COLLECTION = "users"
         private const val LEADERBOARD_COLLECTION = "leaderboard"
-        private const val STATISTICS_COLLECTION = "statistics"
+        private const val SESSIONS_COLLECTION = "study_sessions"
+        private const val SESSION_ITEMS_SUBCOLLECTION = "items"
     }
+
+    private fun sessionDocuments(uid: String) =
+        sessionRootDocument(uid).collection(SESSION_ITEMS_SUBCOLLECTION)
+
+    private fun sessionRootDocument(uid: String) =
+        firestore.collection(SESSIONS_COLLECTION).document(uid)
 }

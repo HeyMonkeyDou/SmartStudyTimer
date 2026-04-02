@@ -8,10 +8,21 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 
 class MainActivity : AppCompatActivity() {
 
+    private val statisticsRepository: StatisticsRepository by lazy {
+        StatisticsRepository.getInstance(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        statisticsRepository.syncLocalSessionsFromFirebase(
+            onSuccess = { setupNavigation() },
+            onError = { setupNavigation() }
+        )
+    }
+
+    private fun setupNavigation() {
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNavigationView)
 
         // Default page
