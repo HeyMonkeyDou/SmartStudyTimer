@@ -37,19 +37,19 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 R.id.statistics -> {
-                    Toast.makeText(this, "Under development, coming soon", Toast.LENGTH_SHORT).show()
-                    false
-                }
-
-                R.id.monitor -> {
-                    loadFragment(Monitor())
+                    loadFragment(Statistic())
                     true
                 }
 
-                R.id.profile -> {
-                    Toast.makeText(this, "Under development, coming soon", Toast.LENGTH_SHORT).show()
-                    false
-                }
+//                R.id.monitor -> {
+//                    loadFragment(Monitor())
+//                    true
+//                }
+
+//                R.id.profile -> {
+//                    loadFragment(Profile())
+//                    true
+//                }
 
                 else -> false
             }

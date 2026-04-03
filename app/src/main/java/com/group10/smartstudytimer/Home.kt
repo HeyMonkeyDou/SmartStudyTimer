@@ -391,7 +391,7 @@ class Home : Fragment(), SensorEventListener {
                 homeContainer.setBackgroundColor(Color.parseColor("#FFF8E1"))
             }
             else -> {
-                homeContainer.setBackgroundColor(Color.WHITE)
+                homeContainer.setBackgroundColor(Color.parseColor("#FEF7FF"))
             }
         }
     }
