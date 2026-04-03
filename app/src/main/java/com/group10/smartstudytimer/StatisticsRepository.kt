@@ -42,25 +42,6 @@ data class StudySessionRecord(
 interface StatisticsRecorder {
     fun recordSession(record: StudySessionRecord)
 
-    fun recordCompletedSession(
-        studyMinutes: Long,
-        interruptionCount: Long = 0,
-        interruptedMinutes: Long = 0,
-        completedAtEpochMillis: Long = System.currentTimeMillis(),
-        mode: StudySessionMode = StudySessionMode.NORMAL,
-        completedSessions: Long = 1,
-        note: String = ""
-    )
-
-    fun recordFailedSession(
-        studyMinutes: Long,
-        interruptionCount: Long = 0,
-        interruptedMinutes: Long = 0,
-        endedAtEpochMillis: Long = System.currentTimeMillis(),
-        mode: StudySessionMode = StudySessionMode.NORMAL,
-        note: String = ""
-    )
-
     fun clearAllLocalStatistics()
 }
 
@@ -69,11 +50,6 @@ interface StatisticsRecorder {
  * These methods return aggregated data for the Statistics screen.
  */
 interface StatisticsReader {
-    fun getStatisticsSnapshot(
-        snapshotDate: LocalDate = LocalDate.now(),
-        month: YearMonth = YearMonth.from(snapshotDate)
-    ): StudyStatistics
-
     fun getDailyStatistics(date: LocalDate): DailyStatisticsRecord
 
     fun getMonthlyStatistics(month: YearMonth): List<DailyStatisticsRecord>
@@ -95,65 +71,8 @@ class StatisticsRepository(
         saveSessions(sessions, syncMode = SessionSyncMode.ADD_ONE, addedSession = record)
     }
 
-    override fun recordCompletedSession(
-        studyMinutes: Long,
-        interruptionCount: Long,
-        interruptedMinutes: Long,
-        completedAtEpochMillis: Long,
-        mode: StudySessionMode,
-        completedSessions: Long,
-        note: String
-    ) {
-        recordSession(
-            StudySessionRecord(
-                endedAtEpochMillis = completedAtEpochMillis,
-                studyMinutes = studyMinutes,
-                interruptionCount = interruptionCount,
-                interruptedMinutes = interruptedMinutes,
-                completedSessions = completedSessions,
-                status = StudySessionStatus.COMPLETED,
-                mode = mode,
-                note = note
-            )
-        )
-    }
-
-    override fun recordFailedSession(
-        studyMinutes: Long,
-        interruptionCount: Long,
-        interruptedMinutes: Long,
-        endedAtEpochMillis: Long,
-        mode: StudySessionMode,
-        note: String
-    ) {
-        recordSession(
-            StudySessionRecord(
-                endedAtEpochMillis = endedAtEpochMillis,
-                studyMinutes = studyMinutes,
-                interruptionCount = interruptionCount,
-                interruptedMinutes = interruptedMinutes,
-                completedSessions = 0,
-                status = StudySessionStatus.FAILED,
-                mode = mode,
-                note = note
-            )
-        )
-    }
-
     override fun clearAllLocalStatistics() {
         preferences.edit().remove(SESSIONS_KEY).apply()
-    }
-
-    override fun getStatisticsSnapshot(
-        snapshotDate: LocalDate,
-        month: YearMonth
-    ): StudyStatistics {
-        val sessions = getRecordedSessions()
-        return StatisticsAggregator.buildStatisticsSnapshot(
-            sessions = sessions,
-            snapshotDate = snapshotDate,
-            month = month
-        )
     }
 
     override fun getDailyStatistics(date: LocalDate): DailyStatisticsRecord {

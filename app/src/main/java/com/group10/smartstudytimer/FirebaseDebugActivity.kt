@@ -31,6 +31,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
     private lateinit var avatarIdInput: EditText
 
     private lateinit var snapshotDateInput: EditText
+    private lateinit var sessionDateInput: EditText
     private lateinit var sessionStudyMinutesInput: EditText
     private lateinit var sessionInterruptionCountInput: EditText
     private lateinit var sessionInterruptedMinutesInput: EditText
@@ -53,6 +54,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
         totalFocusMinutesInput = findViewById(R.id.totalFocusMinutesInput)
         avatarIdInput = findViewById(R.id.avatarIdInput)
         snapshotDateInput = findViewById(R.id.snapshotDateInput)
+        sessionDateInput = findViewById(R.id.sessionDateInput)
         sessionStudyMinutesInput = findViewById(R.id.sessionStudyMinutesInput)
         sessionInterruptionCountInput = findViewById(R.id.sessionInterruptionCountInput)
         sessionInterruptedMinutesInput = findViewById(R.id.sessionInterruptedMinutesInput)
@@ -255,6 +257,12 @@ class FirebaseDebugActivity : AppCompatActivity() {
     }
 
     private fun bindSessionRecord(record: StudySessionRecord) {
+        sessionDateInput.setText(
+            Instant.ofEpochMilli(record.endedAtEpochMillis)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
+                .toString()
+        )
         sessionStudyMinutesInput.setText(record.studyMinutes.toString())
         sessionInterruptionCountInput.setText(record.interruptionCount.toString())
         sessionInterruptedMinutesInput.setText(record.interruptedMinutes.toString())
@@ -265,6 +273,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
     }
 
     private fun clearSessionInputs() {
+        sessionDateInput.setText(LocalDate.now().toString())
         sessionStudyMinutesInput.setText("25")
         sessionInterruptionCountInput.setText("0")
         sessionInterruptedMinutesInput.setText("0")
@@ -276,7 +285,11 @@ class FirebaseDebugActivity : AppCompatActivity() {
 
     private fun collectSessionRecordFromInputs(): StudySessionRecord? {
         val sessionId = UUID.randomUUID().toString()
-        val endedAtEpochMillis = System.currentTimeMillis()
+        val sessionDate = parseDate(sessionDateInput, "sessionDate") ?: return null
+        val endedAtEpochMillis = sessionDate
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
         val studyMinutes = parseLong(sessionStudyMinutesInput, "sessionStudyMinutes") ?: return null
         val interruptionCount = parseLong(sessionInterruptionCountInput, "sessionInterruptionCount") ?: return null
         val interruptedMinutes = parseLong(sessionInterruptedMinutesInput, "sessionInterruptedMinutes") ?: return null

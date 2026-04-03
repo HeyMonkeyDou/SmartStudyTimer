@@ -1,7 +1,9 @@
 package com.group10.smartstudytimer
 
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.Timestamp
 import java.time.LocalDate
+import java.util.Date
 
 data class UserProfile(
     val uid: String = "",
@@ -61,6 +63,7 @@ internal fun StudySessionRecord.toFirestoreMap(): HashMap<String, Any> {
     return hashMapOf(
         "sessionId" to sessionId,
         "endedAtEpochMillis" to endedAtEpochMillis,
+        "endedAtTimestamp" to Timestamp(Date(endedAtEpochMillis)),
         "studyMinutes" to studyMinutes,
         "interruptionCount" to interruptionCount,
         "interruptedMinutes" to interruptedMinutes,
