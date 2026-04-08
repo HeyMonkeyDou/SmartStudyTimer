@@ -12,17 +12,22 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 class FirebaseDebugActivity : AppCompatActivity() {
 
     private val repository = FirebaseRepository()
+    private val profileRepository by lazy {
+        ProfileRepository(this)
+    }
     private val statisticsRepository by lazy {
         StatisticsRepository.getInstance(this)
     }
 
     private lateinit var statusText: TextView
     private lateinit var uidText: TextView
+    private lateinit var profilePreviewText: TextView
     private lateinit var leaderboardText: TextView
     private lateinit var statisticsPreviewText: TextView
     private lateinit var logsText: TextView
@@ -47,6 +52,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
 
         statusText = findViewById(R.id.statusText)
         uidText = findViewById(R.id.uidText)
+        profilePreviewText = findViewById(R.id.profilePreviewText)
         leaderboardText = findViewById(R.id.leaderboardText)
         statisticsPreviewText = findViewById(R.id.statisticsPreviewText)
         logsText = findViewById(R.id.logsText)
@@ -70,6 +76,10 @@ class FirebaseDebugActivity : AppCompatActivity() {
         findViewById<Button>(R.id.loadUserButton).setOnClickListener { loadUser() }
         findViewById<Button>(R.id.saveRankButton).setOnClickListener { saveRank() }
         findViewById<Button>(R.id.loadLeaderboardButton).setOnClickListener { loadLeaderboard() }
+        findViewById<Button>(R.id.loadProfileHeaderButton).setOnClickListener { loadProfileHeader() }
+        findViewById<Button>(R.id.loadBestRecordButton).setOnClickListener { loadBestRecord() }
+        findViewById<Button>(R.id.loadProfileLeaderboardButton).setOnClickListener { loadProfileLeaderboard() }
+        findViewById<Button>(R.id.loadScoreHistoryButton).setOnClickListener { loadScoreHistory() }
 
         findViewById<Button>(R.id.addSessionButton).setOnClickListener { addOneSessionToForm() }
 
@@ -167,6 +177,81 @@ class FirebaseDebugActivity : AppCompatActivity() {
             },
             onError = { error -> showError("Load leaderboard failed", error) }
         )
+    }
+
+    private fun loadProfileHeader() {
+        setStatus("Loading profile header...")
+        profileRepository.loadCurrentProfileHeader(
+            onSuccess = { profileHeader ->
+                uidText.text = "uid: ${profileHeader.userId}"
+                profilePreviewText.text = buildString {
+                    appendLine("profileHeader:")
+                    appendLine("userId: ${profileHeader.userId}")
+                    appendLine("displayName: ${profileHeader.displayName}")
+                    appendLine("avatarId: ${profileHeader.avatarId}")
+                    appendLine("recentSyncTime: ${formatEpochMillis(profileHeader.recentSyncTimeEpochMillis)}")
+                }.trim()
+                appendLog("Profile header loaded.")
+                setStatus("Profile header loaded")
+            },
+            onError = { error -> showError("Load profile header failed", error) }
+        )
+    }
+
+    private fun loadBestRecord() {
+        val bestRecord = profileRepository.getBestStudyRecord()
+        profilePreviewText.text = if (bestRecord == null) {
+            "bestStudyRecord: null"
+        } else {
+            buildString {
+                appendLine("bestStudyRecord:")
+                appendLine("focusScore: ${bestRecord.focusScore}")
+                appendLine("completedAt: ${bestRecord.completedAt}")
+            }.trim()
+        }
+        appendLog("Best study record loaded.")
+        setStatus("Best study record loaded")
+    }
+
+    private fun loadProfileLeaderboard() {
+        setStatus("Loading profile leaderboard...")
+        profileRepository.loadLeaderboard(
+            onSuccess = { entries ->
+                leaderboardText.text = buildString {
+                    appendLine("profileLeaderboardCount: ${entries.size}")
+                    if (entries.isEmpty()) {
+                        appendLine("profileLeaderboard: []")
+                    } else {
+                        appendLine("profileLeaderboard:")
+                        entries.forEach { entry ->
+                            appendLine(
+                                "rank=${entry.rank}, userId=${entry.userId}, displayName=${entry.displayName}, avatarId=${entry.avatarId}, score=${entry.score}"
+                            )
+                        }
+                    }
+                }.trim()
+                appendLog("Profile leaderboard loaded.")
+                setStatus("Profile leaderboard loaded")
+            },
+            onError = { error -> showError("Load profile leaderboard failed", error) }
+        )
+    }
+
+    private fun loadScoreHistory() {
+        val history = profileRepository.getDailyScoreHistory()
+        profilePreviewText.text = buildString {
+            appendLine("scoreHistoryCount: ${history.size}")
+            if (history.isEmpty()) {
+                appendLine("scoreHistory: []")
+            } else {
+                appendLine("scoreHistory:")
+                history.forEach { entry ->
+                    appendLine("date=${entry.date}, score=${entry.score}")
+                }
+            }
+        }.trim()
+        appendLog("Score history loaded.")
+        setStatus("Score history loaded")
     }
 
     private fun addOneSessionToForm() {
@@ -426,6 +511,15 @@ class FirebaseDebugActivity : AppCompatActivity() {
         appendLog(message)
         setStatus(prefix)
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
+
+    private fun formatEpochMillis(epochMillis: Long?): String {
+        if (epochMillis == null) {
+            return "Never"
+        }
+        return Instant.ofEpochMilli(epochMillis)
+            .atZone(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
     }
 
 }

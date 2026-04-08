@@ -9,14 +9,41 @@ data class UserProfile(
     val uid: String = "",
     val displayName: String = "",
     val totalFocusMinutes: Long = 0,
-    val avatarId: String = "avatar_blue"
+    val avatarId: String = "avatar_blue",
+    val updatedAtEpochMillis: Long? = null
 )
 
 data class LeaderboardEntry(
     val uid: String = "",
     val displayName: String = "",
     val totalFocusMinutes: Long = 0,
-    val avatarId: String = "avatar_blue"
+    val avatarId: String = "avatar_blue",
+    val updatedAtEpochMillis: Long? = null
+)
+
+data class ProfileHeader(
+    val userId: String,
+    val displayName: String,
+    val avatarId: String,
+    val recentSyncTimeEpochMillis: Long?
+)
+
+data class BestStudyRecord(
+    val focusScore: Long,
+    val completedAt: String
+)
+
+data class RankedLeaderboardEntry(
+    val rank: Int,
+    val userId: String,
+    val displayName: String,
+    val avatarId: String,
+    val score: Long
+)
+
+data class DailyScoreHistoryEntry(
+    val date: String,
+    val score: Long
 )
 
 data class DailyStatisticsRecord(
@@ -46,7 +73,8 @@ internal fun DocumentSnapshot.toUserProfile(): UserProfile {
         uid = id,
         displayName = getString("displayName").orEmpty(),
         totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
-        avatarId = getString("avatarId") ?: "avatar_blue"
+        avatarId = getString("avatarId") ?: "avatar_blue",
+        updatedAtEpochMillis = getTimestamp("updatedAt")?.toDate()?.time
     )
 }
 
@@ -55,7 +83,8 @@ internal fun DocumentSnapshot.toLeaderboardEntry(): LeaderboardEntry {
         uid = id,
         displayName = getString("displayName").orEmpty(),
         totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
-        avatarId = getString("avatarId") ?: "avatar_blue"
+        avatarId = getString("avatarId") ?: "avatar_blue",
+        updatedAtEpochMillis = getTimestamp("updatedAt")?.toDate()?.time
     )
 }
 

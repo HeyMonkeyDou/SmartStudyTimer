@@ -55,6 +55,8 @@ interface StatisticsReader {
     fun getMonthlyStatistics(month: YearMonth): List<DailyStatisticsRecord>
 
     fun getRecordedSessions(): List<StudySessionRecord>
+
+    fun getLastSyncEpochMillis(): Long?
 }
 
 class StatisticsRepository(
@@ -68,7 +70,7 @@ class StatisticsRepository(
     override fun recordSession(record: StudySessionRecord) {
         val sessions = getRecordedSessions().toMutableList()
         sessions.add(record)
-        saveSessions(sessions, syncMode = SessionSyncMode.ADD_ONE, addedSession = record)
+        saveSessions(sessions)
     }
 
     override fun clearAllLocalStatistics() {
@@ -100,6 +102,11 @@ class StatisticsRepository(
         }.sortedBy { it.endedAtEpochMillis }
     }
 
+    override fun getLastSyncEpochMillis(): Long? {
+        return preferences.takeIf { it.contains(LAST_SYNC_EPOCH_MILLIS_KEY) }
+            ?.getLong(LAST_SYNC_EPOCH_MILLIS_KEY, 0L)
+    }
+
     private fun saveSessions(sessions: List<StudySessionRecord>) {
         saveSessions(sessions, syncMode = SessionSyncMode.REPLACE_ALL)
     }
@@ -112,6 +119,7 @@ class StatisticsRepository(
             onSuccess = { sessions ->
                 val syncedSessions = sessions.orEmpty().sortedBy { it.endedAtEpochMillis }
                 saveSessions(syncedSessions, syncMode = SessionSyncMode.NONE)
+                markSyncCompleted()
                 onSuccess?.invoke()
             },
             onError = { error ->
@@ -143,7 +151,7 @@ class StatisticsRepository(
     private fun syncSessionsToFirebase(sessions: List<StudySessionRecord>) {
         firebaseRepository.saveCurrentStudySessions(
             sessions = sessions,
-            onSuccess = {},
+            onSuccess = { markSyncCompleted() },
             onError = {}
         )
     }
@@ -151,14 +159,21 @@ class StatisticsRepository(
     private fun syncSessionToFirebase(session: StudySessionRecord) {
         firebaseRepository.addCurrentStudySession(
             session = session,
-            onSuccess = {},
+            onSuccess = { markSyncCompleted() },
             onError = {}
         )
+    }
+
+    private fun markSyncCompleted() {
+        preferences.edit()
+            .putLong(LAST_SYNC_EPOCH_MILLIS_KEY, System.currentTimeMillis())
+            .apply()
     }
 
     companion object {
         private const val PREFERENCES_NAME = "statistics_repository"
         private const val SESSIONS_KEY = "statistics.sessions"
+        private const val LAST_SYNC_EPOCH_MILLIS_KEY = "statistics.last_sync_epoch_millis"
         @Volatile private var instance: StatisticsRepository? = null
 
         fun getInstance(context: Context): StatisticsRepository {
