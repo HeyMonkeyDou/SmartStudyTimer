@@ -1,10 +1,11 @@
 package com.group10.smartstudytimer
 
+import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : AppCompatActivity() {
 
@@ -14,6 +15,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser == null || currentUser.isAnonymous) {
+            startActivity(Intent(this, AuthActivity::class.java))
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_main)
 
         statisticsRepository.syncLocalSessionsFromFirebase(
@@ -41,15 +49,10 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
 
-//                R.id.monitor -> {
-//                    loadFragment(Monitor())
-//                    true
-//                }
-
-//                R.id.profile -> {
-//                    loadFragment(Profile())
-//                    true
-//                }
+                R.id.profile -> {
+                    loadFragment(Profile())
+                    true
+                }
 
                 else -> false
             }

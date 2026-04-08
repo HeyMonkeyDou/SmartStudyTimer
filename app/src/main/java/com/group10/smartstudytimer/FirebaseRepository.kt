@@ -10,28 +10,35 @@ class FirebaseRepository(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
 
-    fun ensureAnonymousUser(
+    fun ensureSignedInUser(
         onSuccess: (String) -> Unit,
         onError: (Exception) -> Unit
     ) {
         val currentUser = auth.currentUser
-        if (currentUser != null) {
-            onSuccess(currentUser.uid)
+        if (currentUser?.isAnonymous == true) {
+            onError(IllegalStateException("Anonymous users are not allowed in this build."))
+            return
+        }
+        val uid = currentUser?.uid
+        if (!uid.isNullOrBlank()) {
+            onSuccess(uid)
             return
         }
 
-        auth.signInAnonymously()
-            .addOnSuccessListener { result ->
-                val uid = result.user?.uid
-                if (uid.isNullOrBlank()) {
-                    onError(IllegalStateException("Firebase returned an empty uid."))
-                } else {
-                    onSuccess(uid)
-                }
-            }
-            .addOnFailureListener { error ->
-                onError(error)
-            }
+        onError(IllegalStateException("User is not signed in."))
+    }
+
+    fun getCurrentUserId(): String? {
+        val uid = auth.currentUser?.uid
+        return uid?.takeIf { it.isNotBlank() }
+    }
+
+    @Deprecated("Use ensureSignedInUser instead.")
+    fun ensureAnonymousUser(
+        onSuccess: (String) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(onSuccess, onError)
     }
 
     fun saveCurrentUserProfile(
@@ -41,7 +48,7 @@ class FirebaseRepository(
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        ensureAnonymousUser(
+        ensureSignedInUser(
             onSuccess = { uid ->
                 saveUserProfile(
                     profile = UserProfile(
@@ -85,7 +92,7 @@ class FirebaseRepository(
         onSuccess: (UserProfile?) -> Unit,
         onError: (Exception) -> Unit
     ) {
-        ensureAnonymousUser(
+        ensureSignedInUser(
             onSuccess = { uid -> loadUserProfile(uid, onSuccess, onError) },
             onError = onError
         )
@@ -130,7 +137,7 @@ class FirebaseRepository(
         onSuccess: () -> Unit = {},
         onError: (Exception) -> Unit = {}
     ) {
-        ensureAnonymousUser(
+        ensureSignedInUser(
             onSuccess = { uid ->
                 loadUserProfile(
                     uid = uid,
@@ -161,7 +168,7 @@ class FirebaseRepository(
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        ensureAnonymousUser(
+        ensureSignedInUser(
             onSuccess = { uid -> saveStudySessions(uid, sessions, onSuccess, onError) },
             onError = onError
         )
@@ -209,7 +216,7 @@ class FirebaseRepository(
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        ensureAnonymousUser(
+        ensureSignedInUser(
             onSuccess = { uid -> addStudySession(uid, session, onSuccess, onError) },
             onError = onError
         )
@@ -242,7 +249,7 @@ class FirebaseRepository(
         onSuccess: (List<StudySessionRecord>?) -> Unit,
         onError: (Exception) -> Unit
     ) {
-        ensureAnonymousUser(
+        ensureSignedInUser(
             onSuccess = { uid -> loadStudySessions(uid, onSuccess, onError) },
             onError = onError
         )
@@ -270,7 +277,7 @@ class FirebaseRepository(
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        ensureAnonymousUser(
+        ensureSignedInUser(
             onSuccess = { uid -> deleteStudySessions(uid, onSuccess, onError) },
             onError = onError
         )

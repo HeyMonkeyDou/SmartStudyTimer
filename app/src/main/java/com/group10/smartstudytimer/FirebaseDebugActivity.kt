@@ -119,11 +119,11 @@ class FirebaseDebugActivity : AppCompatActivity() {
     }
 
     private fun signIn() {
-        setStatus("Signing in...")
-        repository.ensureAnonymousUser(
+        setStatus("Checking session...")
+        repository.ensureSignedInUser(
             onSuccess = { uid ->
                 uidText.text = "uid: $uid"
-                appendLog("Anonymous sign-in success: $uid")
+                appendLog("Signed-in user: $uid")
                 setStatus("Signed in")
             },
             onError = { error -> showError("Sign in failed", error) }

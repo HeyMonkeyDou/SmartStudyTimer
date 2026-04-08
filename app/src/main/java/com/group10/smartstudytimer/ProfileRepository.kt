@@ -14,7 +14,7 @@ class ProfileRepository(
         onSuccess: (ProfileHeader) -> Unit,
         onError: (Exception) -> Unit
     ) {
-        firebaseRepository.ensureAnonymousUser(
+        firebaseRepository.ensureSignedInUser(
             onSuccess = { uid ->
                 firebaseRepository.loadUserProfile(
                     uid = uid,

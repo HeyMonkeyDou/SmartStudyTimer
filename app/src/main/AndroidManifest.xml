@@ -28,7 +28,7 @@
             android:label="Firebase Debug"
             android:theme="@style/Theme.SmartStudyTimer" />
         <activity
-            android:name=".MainActivity"
+            android:name=".AuthActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.SmartStudyTimer">
@@ -38,6 +38,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.SmartStudyTimer" />
     </application>
 
 </manifest>
