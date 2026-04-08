@@ -421,7 +421,7 @@ class Home : Fragment(), SensorEventListener {
         pauseTimer()
         AlertDialog.Builder(requireContext())
             .setTitle("⚠️ Warning：Movement detected")
-            .setMessage("Please put down your phone, stay focus! Distraction will be recorded")
+            .setMessage("Please put down your phone, stay focused! Distraction will be recorded")
             .setCancelable(false)
             .setPositiveButton("Done") { dialog, _ ->
                 registerDistraction()
