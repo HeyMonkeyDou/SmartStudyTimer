@@ -9,15 +9,18 @@ data class UserProfile(
     val uid: String = "",
     val displayName: String = "",
     val totalFocusMinutes: Long = 0,
-    val avatarId: String = "avatar_blue",
+    val avatarId: String = "",
+    val bestFocusScore: Long = 0,
+    val bestFocusScoreCompletedAt: String = "",
     val updatedAtEpochMillis: Long? = null
 )
 
 data class LeaderboardEntry(
     val uid: String = "",
     val displayName: String = "",
-    val totalFocusMinutes: Long = 0,
-    val avatarId: String = "avatar_blue",
+    val bestFocusScore: Long = 0,
+    val bestFocusScoreCompletedAt: String = "",
+    val avatarId: String = "",
     val updatedAtEpochMillis: Long? = null
 )
 
@@ -73,7 +76,12 @@ internal fun DocumentSnapshot.toUserProfile(): UserProfile {
         uid = id,
         displayName = getString("displayName").orEmpty(),
         totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
-        avatarId = getString("avatarId") ?: "avatar_blue",
+        avatarId = AvatarAssets.resolveAvatarId(
+            userId = id,
+            avatarId = getString("avatarId")
+        ),
+        bestFocusScore = getLong("bestFocusScore") ?: 0,
+        bestFocusScoreCompletedAt = getString("bestFocusScoreCompletedAt").orEmpty(),
         updatedAtEpochMillis = getTimestamp("updatedAt")?.toDate()?.time
     )
 }
@@ -82,8 +90,12 @@ internal fun DocumentSnapshot.toLeaderboardEntry(): LeaderboardEntry {
     return LeaderboardEntry(
         uid = id,
         displayName = getString("displayName").orEmpty(),
-        totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
-        avatarId = getString("avatarId") ?: "avatar_blue",
+        bestFocusScore = getLong("bestFocusScore") ?: 0,
+        bestFocusScoreCompletedAt = getString("bestFocusScoreCompletedAt").orEmpty(),
+        avatarId = AvatarAssets.resolveAvatarId(
+            userId = id,
+            avatarId = getString("avatarId")
+        ),
         updatedAtEpochMillis = getTimestamp("updatedAt")?.toDate()?.time
     )
 }

@@ -46,9 +46,9 @@ class FirebaseRepository(
                 saveUserProfile(
                     profile = UserProfile(
                         uid = uid,
-                        displayName = displayName,
+                        displayName = displayName.ifBlank { uid.take(6) },
                         totalFocusMinutes = totalFocusMinutes,
-                        avatarId = avatarId
+                        avatarId = AvatarAssets.resolveAvatarId(uid, avatarId)
                     ),
                     onSuccess = onSuccess,
                     onError = onError
@@ -63,16 +63,20 @@ class FirebaseRepository(
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
+        val resolvedAvatarId = AvatarAssets.resolveAvatarId(profile.uid, profile.avatarId)
+        val resolvedDisplayName = profile.displayName.ifBlank { profile.uid.take(6) }
         val payload = hashMapOf(
-            "displayName" to profile.displayName,
+            "displayName" to resolvedDisplayName,
             "totalFocusMinutes" to profile.totalFocusMinutes,
-            "avatarId" to profile.avatarId,
+            "avatarId" to resolvedAvatarId,
+            "bestFocusScore" to profile.bestFocusScore,
+            "bestFocusScoreCompletedAt" to profile.bestFocusScoreCompletedAt,
             "updatedAt" to FieldValue.serverTimestamp()
         )
 
         firestore.collection(USERS_COLLECTION)
             .document(profile.uid)
-            .set(payload)
+            .set(payload, com.google.firebase.firestore.SetOptions.merge())
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener { error -> onError(error) }
     }
@@ -105,62 +109,51 @@ class FirebaseRepository(
             .addOnFailureListener { error -> onError(error) }
     }
 
-    fun saveCurrentLeaderboardEntry(
-        displayName: String,
-        totalFocusMinutes: Long,
-        avatarId: String,
-        onSuccess: () -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        ensureAnonymousUser(
-            onSuccess = { uid ->
-                saveLeaderboardEntry(
-                    entry = LeaderboardEntry(
-                        uid = uid,
-                        displayName = displayName,
-                        totalFocusMinutes = totalFocusMinutes,
-                        avatarId = avatarId
-                    ),
-                    onSuccess = onSuccess,
-                    onError = onError
-                )
-            },
-            onError = onError
-        )
-    }
-
-    fun saveLeaderboardEntry(
-        entry: LeaderboardEntry,
-        onSuccess: () -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        val payload = hashMapOf(
-            "displayName" to entry.displayName,
-            "totalFocusMinutes" to entry.totalFocusMinutes,
-            "avatarId" to entry.avatarId,
-            "updatedAt" to FieldValue.serverTimestamp()
-        )
-
-        firestore.collection(LEADERBOARD_COLLECTION)
-            .document(entry.uid)
-            .set(payload)
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { error -> onError(error) }
-    }
-
     fun loadLeaderboard(
         limit: Long = 10,
         onSuccess: (List<LeaderboardEntry>) -> Unit,
         onError: (Exception) -> Unit
     ) {
-        firestore.collection(LEADERBOARD_COLLECTION)
-            .orderBy("totalFocusMinutes", Query.Direction.DESCENDING)
+        firestore.collection(USERS_COLLECTION)
+            .orderBy("bestFocusScore", Query.Direction.DESCENDING)
             .limit(limit)
             .get()
             .addOnSuccessListener { result ->
                 onSuccess(result.documents.map { it.toLeaderboardEntry() })
             }
             .addOnFailureListener { error -> onError(error) }
+    }
+
+    fun updateCurrentBestFocusScore(
+        bestFocusScore: Long,
+        bestFocusScoreCompletedAt: String,
+        onSuccess: () -> Unit = {},
+        onError: (Exception) -> Unit = {}
+    ) {
+        ensureAnonymousUser(
+            onSuccess = { uid ->
+                loadUserProfile(
+                    uid = uid,
+                    onSuccess = { profile ->
+                        val payload = hashMapOf(
+                            "displayName" to profile?.displayName.orEmpty().ifBlank { uid.take(6) },
+                            "avatarId" to AvatarAssets.resolveAvatarId(uid, profile?.avatarId),
+                            "bestFocusScore" to bestFocusScore,
+                            "bestFocusScoreCompletedAt" to bestFocusScoreCompletedAt,
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+
+                        firestore.collection(USERS_COLLECTION)
+                            .document(uid)
+                            .set(payload, com.google.firebase.firestore.SetOptions.merge())
+                            .addOnSuccessListener { onSuccess() }
+                            .addOnFailureListener { error -> onError(error) }
+                    },
+                    onError = onError
+                )
+            },
+            onError = onError
+        )
     }
 
     fun saveCurrentStudySessions(
@@ -313,7 +306,6 @@ class FirebaseRepository(
 
     companion object {
         private const val USERS_COLLECTION = "users"
-        private const val LEADERBOARD_COLLECTION = "leaderboard"
         private const val SESSIONS_COLLECTION = "study_sessions"
         private const val SESSION_ITEMS_SUBCOLLECTION = "items"
     }

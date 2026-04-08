@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -27,6 +28,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
 
     private lateinit var statusText: TextView
     private lateinit var uidText: TextView
+    private lateinit var avatarPreviewImage: ImageView
     private lateinit var profilePreviewText: TextView
     private lateinit var leaderboardText: TextView
     private lateinit var statisticsPreviewText: TextView
@@ -52,6 +54,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
 
         statusText = findViewById(R.id.statusText)
         uidText = findViewById(R.id.uidText)
+        avatarPreviewImage = findViewById(R.id.avatarPreviewImage)
         profilePreviewText = findViewById(R.id.profilePreviewText)
         leaderboardText = findViewById(R.id.leaderboardText)
         statisticsPreviewText = findViewById(R.id.statisticsPreviewText)
@@ -70,16 +73,16 @@ class FirebaseDebugActivity : AppCompatActivity() {
         sessionNoteInput = findViewById(R.id.sessionNoteInput)
         sessionsInput = findViewById(R.id.sessionsInput)
         setupSessionSelectors()
+        renderAvatarPreview(AvatarAssets.CAT)
 
         findViewById<Button>(R.id.signInButton).setOnClickListener { signIn() }
         findViewById<Button>(R.id.saveUserButton).setOnClickListener { saveUser() }
         findViewById<Button>(R.id.loadUserButton).setOnClickListener { loadUser() }
-        findViewById<Button>(R.id.saveRankButton).setOnClickListener { saveRank() }
-        findViewById<Button>(R.id.loadLeaderboardButton).setOnClickListener { loadLeaderboard() }
         findViewById<Button>(R.id.loadProfileHeaderButton).setOnClickListener { loadProfileHeader() }
         findViewById<Button>(R.id.loadBestRecordButton).setOnClickListener { loadBestRecord() }
         findViewById<Button>(R.id.loadProfileLeaderboardButton).setOnClickListener { loadProfileLeaderboard() }
         findViewById<Button>(R.id.loadScoreHistoryButton).setOnClickListener { loadScoreHistory() }
+        findViewById<Button>(R.id.shareBestRecordImageButton).setOnClickListener { shareBestRecordImage() }
 
         findViewById<Button>(R.id.addSessionButton).setOnClickListener { addOneSessionToForm() }
 
@@ -90,6 +93,29 @@ class FirebaseDebugActivity : AppCompatActivity() {
         findViewById<Button>(R.id.clearServerStatisticsButton).setOnClickListener { clearServerSessions() }
 
         loadLocalSessionsIntoForm()
+        loadDebugDataOnStart()
+    }
+
+    private fun loadDebugDataOnStart() {
+        signIn()
+        statisticsRepository.syncLocalSessionsFromFirebase(
+            onSuccess = {
+                loadLocalSessionsIntoForm()
+                loadUser()
+                loadProfileHeader()
+                loadBestRecord()
+                loadProfileLeaderboard()
+                loadScoreHistory()
+            },
+            onError = {
+                loadLocalSessionsIntoForm()
+                loadUser()
+                loadProfileHeader()
+                loadBestRecord()
+                loadProfileLeaderboard()
+                loadScoreHistory()
+            }
+        )
     }
 
     private fun signIn() {
@@ -110,7 +136,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
         repository.saveCurrentUserProfile(
             displayName = displayNameInput.text.toString().trim(),
             totalFocusMinutes = totalFocusMinutes,
-            avatarId = avatarIdInput.text.toString().trim().ifBlank { "avatar_blue" },
+            avatarId = avatarIdInput.text.toString().trim(),
             onSuccess = {
                 appendLog("User profile saved.")
                 setStatus("User saved")
@@ -133,6 +159,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
                 displayNameInput.setText(profile.displayName)
                 totalFocusMinutesInput.setText(profile.totalFocusMinutes.toString())
                 avatarIdInput.setText(profile.avatarId)
+                renderAvatarPreview(profile.avatarId)
                 appendLog("User profile loaded.")
                 setStatus("User loaded")
             },
@@ -140,48 +167,9 @@ class FirebaseDebugActivity : AppCompatActivity() {
         )
     }
 
-    private fun saveRank() {
-        val totalFocusMinutes = parseLong(totalFocusMinutesInput, "Total focus minutes") ?: return
-        setStatus("Saving leaderboard entry...")
-        repository.saveCurrentLeaderboardEntry(
-            displayName = displayNameInput.text.toString().trim(),
-            totalFocusMinutes = totalFocusMinutes,
-            avatarId = avatarIdInput.text.toString().trim().ifBlank { "avatar_blue" },
-            onSuccess = {
-                appendLog("Leaderboard entry saved.")
-                setStatus("Leaderboard saved")
-            },
-            onError = { error -> showError("Save leaderboard failed", error) }
-        )
-    }
-
-    private fun loadLeaderboard() {
-        setStatus("Loading leaderboard...")
-        repository.loadLeaderboard(
-            onSuccess = { entries ->
-                leaderboardText.text = buildString {
-                    appendLine("leaderboardEntryCount: ${entries.size}")
-                    if (entries.isEmpty()) {
-                        appendLine("leaderboardEntries: []")
-                    } else {
-                        appendLine("leaderboardEntries:")
-                        entries.forEachIndexed { index, entry ->
-                            appendLine(
-                                "index=${index + 1}, uid=${entry.uid}, displayName=${entry.displayName}, totalFocusMinutes=${entry.totalFocusMinutes}, avatarId=${entry.avatarId}"
-                            )
-                        }
-                    }
-                }.trim()
-                appendLog("Loaded ${entries.size} leaderboard entries.")
-                setStatus("Leaderboard loaded")
-            },
-            onError = { error -> showError("Load leaderboard failed", error) }
-        )
-    }
-
     private fun loadProfileHeader() {
         setStatus("Loading profile header...")
-        profileRepository.loadCurrentProfileHeader(
+        profileRepository.loadProfileHeader(
             onSuccess = { profileHeader ->
                 uidText.text = "uid: ${profileHeader.userId}"
                 profilePreviewText.text = buildString {
@@ -191,6 +179,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
                     appendLine("avatarId: ${profileHeader.avatarId}")
                     appendLine("recentSyncTime: ${formatEpochMillis(profileHeader.recentSyncTimeEpochMillis)}")
                 }.trim()
+                renderAvatarPreview(profileHeader.avatarId)
                 appendLog("Profile header loaded.")
                 setStatus("Profile header loaded")
             },
@@ -252,6 +241,24 @@ class FirebaseDebugActivity : AppCompatActivity() {
         }.trim()
         appendLog("Score history loaded.")
         setStatus("Score history loaded")
+    }
+
+    private fun shareBestRecordImage() {
+        setStatus("Preparing best record image...")
+        profileRepository.shareBestRecordImage(
+            onSuccess = {
+                appendLog("Best record image share sheet opened.")
+                setStatus("Best record image shared")
+            },
+            onNoData = {
+                appendLog("No best study record available to share as image.")
+                setStatus("No best study record")
+                Toast.makeText(this, "No best study record available to share", Toast.LENGTH_SHORT).show()
+            },
+            onError = { error ->
+                showError("Share best record image failed", error)
+            }
+        )
     }
 
     private fun addOneSessionToForm() {
@@ -520,6 +527,14 @@ class FirebaseDebugActivity : AppCompatActivity() {
         return Instant.ofEpochMilli(epochMillis)
             .atZone(ZoneId.systemDefault())
             .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+    }
+
+    private fun renderAvatarPreview(avatarId: String?) {
+        val resolvedAvatarId = AvatarAssets.resolveAvatarId(
+            userId = uidText.text.toString().removePrefix("uid: ").trim(),
+            avatarId = avatarId
+        )
+        avatarPreviewImage.setImageResource(AvatarAssets.getAvatarResId(resolvedAvatarId))
     }
 
 }

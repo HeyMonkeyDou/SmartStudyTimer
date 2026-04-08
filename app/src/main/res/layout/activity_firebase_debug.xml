@@ -31,6 +31,15 @@
             android:layout_marginTop="8dp"
             android:text="uid: Not signed in" />
 
+        <ImageView
+            android:id="@+id/avatarPreviewImage"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:layout_marginTop="12dp"
+            android:contentDescription="Avatar preview"
+            android:scaleType="fitCenter"
+            android:src="@drawable/cat" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -62,9 +71,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:hint="Avatar ID"
+            android:hint="Avatar ID: cat/chicken/panda/rabbit"
             android:inputType="text"
-            android:text="avatar_blue" />
+            android:text="" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -99,25 +108,9 @@
                 android:id="@+id/loadUserButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
                 android:layout_weight="1"
                 android:text="Load User" />
-
-            <Button
-                android:id="@+id/saveRankButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="Save Rank" />
         </LinearLayout>
-
-        <Button
-            android:id="@+id/loadLeaderboardButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Load Leaderboard" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -172,6 +165,13 @@
                 android:layout_weight="1"
                 android:text="Load Score History" />
         </LinearLayout>
+
+        <Button
+            android:id="@+id/shareBestRecordImageButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Share Best Record Image" />
 
         <TextView
             android:id="@+id/profilePreviewText"

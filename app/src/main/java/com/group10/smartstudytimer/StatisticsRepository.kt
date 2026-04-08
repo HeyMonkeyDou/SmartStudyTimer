@@ -138,6 +138,7 @@ class StatisticsRepository(
             jsonArray.put(session.toJson())
         }
         preferences.edit().putString(SESSIONS_KEY, jsonArray.toString()).apply()
+        syncBestFocusScoreToFirebase(sessions)
         when (syncMode) {
             SessionSyncMode.NONE -> Unit
             SessionSyncMode.REPLACE_ALL -> syncSessionsToFirebase(sessions)
@@ -168,6 +169,17 @@ class StatisticsRepository(
         preferences.edit()
             .putLong(LAST_SYNC_EPOCH_MILLIS_KEY, System.currentTimeMillis())
             .apply()
+    }
+
+    private fun syncBestFocusScoreToFirebase(sessions: List<StudySessionRecord>) {
+        val bestRecord = StatisticsAggregator.buildDailyPeakScoreRecords(sessions)
+            .maxWithOrNull(compareBy<DailyStatisticsRecord> { it.focusScore }.thenBy { it.date })
+            ?: DailyStatisticsRecord()
+
+        firebaseRepository.updateCurrentBestFocusScore(
+            bestFocusScore = bestRecord.focusScore,
+            bestFocusScoreCompletedAt = bestRecord.date
+        )
     }
 
     companion object {
@@ -254,6 +266,35 @@ object StatisticsAggregator {
                     record.interruptedMinutes > 0 ||
                     record.completedSessions > 0
             }
+    }
+
+    fun buildDailyPeakScoreRecords(sessions: List<StudySessionRecord>): List<DailyStatisticsRecord> {
+        return sessions
+            .mapNotNull { session ->
+                val date = session.toLocalDate() ?: return@mapNotNull null
+                DailyStatisticsRecord(
+                    date = date.toString(),
+                    studyMinutes = session.studyMinutes,
+                    interruptionCount = session.interruptionCount,
+                    interruptedMinutes = session.interruptedMinutes,
+                    completedSessions = session.completedSessions,
+                    focusScore = calculateFocusScore(
+                        studyMinutes = session.studyMinutes,
+                        interruptionCount = session.interruptionCount,
+                        interruptedMinutes = session.interruptedMinutes,
+                        completedSessions = session.completedSessions
+                    )
+                )
+            }
+            .groupBy { it.date }
+            .mapNotNull { (_, records) ->
+                records.maxWithOrNull(
+                    compareBy<DailyStatisticsRecord> { it.focusScore }
+                        .thenBy { it.studyMinutes }
+                        .thenBy { it.completedSessions }
+                )
+            }
+            .sortedBy { it.date }
     }
 
     fun calculateFocusScore(
