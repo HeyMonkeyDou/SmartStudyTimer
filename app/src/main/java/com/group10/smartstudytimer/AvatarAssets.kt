@@ -16,7 +16,7 @@ object AvatarAssets {
         if (userId.isBlank()) {
             return CAT
         }
-        val index = userId.hashCode().toUInt().toInt() % avatarIds.size
+        val index = Math.floorMod(userId.hashCode(), avatarIds.size)
         return avatarIds[index]
     }
 
