@@ -630,9 +630,16 @@ class Home : Fragment(), SensorEventListener {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Prevent memory leaks by releasing resources when they are destroyed
         if (::speechRecognizer.isInitialized) {
             speechRecognizer.destroy()
         }
+    }
+
+    fun getInterruptedTimeInMillis(): Long {
+        return interruptedTimeInMillis
+    }
+
+    fun getDistractionCount(): Int {
+        return distractionCount
     }
 }
