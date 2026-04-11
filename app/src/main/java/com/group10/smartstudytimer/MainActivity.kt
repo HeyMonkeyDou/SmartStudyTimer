@@ -49,6 +49,11 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
 
+                R.id.monitor -> {
+                    loadFragment(Monitor())
+                    true
+                }
+
                 R.id.profile -> {
                     loadFragment(Profile())
                     true
