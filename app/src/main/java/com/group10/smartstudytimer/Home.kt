@@ -28,7 +28,10 @@ import kotlin.math.sqrt
 
 class Home : Fragment(), SensorEventListener {
 
-    // --- 原有变量声明 ---
+    private val statisticsRepository: StatisticsRepository by lazy {
+        StatisticsRepository.getInstance(requireContext())
+    }
+
     private lateinit var homeContainer: LinearLayout
     private lateinit var radioGroupMode: RadioGroup
     private lateinit var radioNormal: RadioButton
@@ -66,7 +69,7 @@ class Home : Fragment(), SensorEventListener {
     private var distractionCount = 0
     private var sessionInvalidated = false
 
-    // --- 新增：传感器与语音变量 ---
+    // sensor and accelerometer variables
     private lateinit var sensorManager: SensorManager
     private var accelerometer: Sensor? = null
     private var lastAcceleration = SensorManager.GRAVITY_EARTH
@@ -88,7 +91,7 @@ class Home : Fragment(), SensorEventListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // 初始化传感器
+        // Initialize sensors
         sensorManager = requireActivity().getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
@@ -117,7 +120,7 @@ class Home : Fragment(), SensorEventListener {
             resetTimer()
         }
 
-        // 初始化语音控制
+        // Initialize voice control
         setupVoiceControl()
     }
 
@@ -157,7 +160,7 @@ class Home : Fragment(), SensorEventListener {
         btnPause = view.findViewById(R.id.btnPause)
         btnReset = view.findViewById(R.id.btnReset)
 
-        // 绑定语音按钮
+        // Bind voice control button
         btnVoiceCommand = view.findViewById(R.id.btnVoiceCommand)
     }
 
@@ -286,7 +289,6 @@ class Home : Fragment(), SensorEventListener {
 
         timerRunning = true
 
-        // 仅在番茄钟模式且不是休息时间时开启防分心检测
         if (isPomodoroMode && !isBreakTime) {
             accelerometer?.let { sensor ->
                 sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
@@ -420,12 +422,12 @@ class Home : Fragment(), SensorEventListener {
                 homeContainer.setBackgroundColor(Color.parseColor("#FFF8E1"))
             }
             else -> {
-                homeContainer.setBackgroundColor(Color.WHITE)
+                homeContainer.setBackgroundColor(Color.parseColor("#FEF7FF"))
             }
         }
     }
 
-    // --- 新增：传感器回调方法 ---
+    // Sensor callback methods
     override fun onSensorChanged(event: SensorEvent) {
         if (timerRunning && isPomodoroMode && !isBreakTime && !sessionInvalidated) {
             val x = event.values[0]
@@ -443,14 +445,14 @@ class Home : Fragment(), SensorEventListener {
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        // 留空即可
+
     }
 
     private fun showMovementWarning() {
         pauseTimer()
         AlertDialog.Builder(requireContext())
             .setTitle("⚠️ Warning：Movement detected")
-            .setMessage("Please put down your phone, stay focus! Distraction will be recorded")
+            .setMessage("Please put down your phone, stay focused! Distraction will be recorded")
             .setCancelable(false)
             .setPositiveButton("Done") { dialog, _ ->
                 registerDistraction()
@@ -608,7 +610,7 @@ class Home : Fragment(), SensorEventListener {
 
     override fun onDestroy() {
         super.onDestroy()
-        // 防止内存泄漏，销毁时释放资源
+        // Prevent memory leaks by releasing resources when they are destroyed
         if (::speechRecognizer.isInitialized) {
             speechRecognizer.destroy()
         }

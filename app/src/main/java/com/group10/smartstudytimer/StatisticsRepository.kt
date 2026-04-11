@@ -42,25 +42,6 @@ data class StudySessionRecord(
 interface StatisticsRecorder {
     fun recordSession(record: StudySessionRecord)
 
-    fun recordCompletedSession(
-        studyMinutes: Long,
-        interruptionCount: Long = 0,
-        interruptedMinutes: Long = 0,
-        completedAtEpochMillis: Long = System.currentTimeMillis(),
-        mode: StudySessionMode = StudySessionMode.NORMAL,
-        completedSessions: Long = 1,
-        note: String = ""
-    )
-
-    fun recordFailedSession(
-        studyMinutes: Long,
-        interruptionCount: Long = 0,
-        interruptedMinutes: Long = 0,
-        endedAtEpochMillis: Long = System.currentTimeMillis(),
-        mode: StudySessionMode = StudySessionMode.NORMAL,
-        note: String = ""
-    )
-
     fun clearAllLocalStatistics()
 }
 
@@ -69,16 +50,13 @@ interface StatisticsRecorder {
  * These methods return aggregated data for the Statistics screen.
  */
 interface StatisticsReader {
-    fun getStatisticsSnapshot(
-        snapshotDate: LocalDate = LocalDate.now(),
-        month: YearMonth = YearMonth.from(snapshotDate)
-    ): StudyStatistics
-
     fun getDailyStatistics(date: LocalDate): DailyStatisticsRecord
 
     fun getMonthlyStatistics(month: YearMonth): List<DailyStatisticsRecord>
 
     fun getRecordedSessions(): List<StudySessionRecord>
+
+    fun getLastSyncEpochMillis(): Long?
 }
 
 class StatisticsRepository(
@@ -95,65 +73,8 @@ class StatisticsRepository(
         saveSessions(sessions)
     }
 
-    override fun recordCompletedSession(
-        studyMinutes: Long,
-        interruptionCount: Long,
-        interruptedMinutes: Long,
-        completedAtEpochMillis: Long,
-        mode: StudySessionMode,
-        completedSessions: Long,
-        note: String
-    ) {
-        recordSession(
-            StudySessionRecord(
-                endedAtEpochMillis = completedAtEpochMillis,
-                studyMinutes = studyMinutes,
-                interruptionCount = interruptionCount,
-                interruptedMinutes = interruptedMinutes,
-                completedSessions = completedSessions,
-                status = StudySessionStatus.COMPLETED,
-                mode = mode,
-                note = note
-            )
-        )
-    }
-
-    override fun recordFailedSession(
-        studyMinutes: Long,
-        interruptionCount: Long,
-        interruptedMinutes: Long,
-        endedAtEpochMillis: Long,
-        mode: StudySessionMode,
-        note: String
-    ) {
-        recordSession(
-            StudySessionRecord(
-                endedAtEpochMillis = endedAtEpochMillis,
-                studyMinutes = studyMinutes,
-                interruptionCount = interruptionCount,
-                interruptedMinutes = interruptedMinutes,
-                completedSessions = 0,
-                status = StudySessionStatus.FAILED,
-                mode = mode,
-                note = note
-            )
-        )
-    }
-
     override fun clearAllLocalStatistics() {
         preferences.edit().remove(SESSIONS_KEY).apply()
-    }
-
-    override fun getStatisticsSnapshot(
-        snapshotDate: LocalDate,
-        month: YearMonth
-    ): StudyStatistics {
-        val sessions = getRecordedSessions()
-        return StatisticsAggregator.buildStatisticsSnapshot(
-            sessions = sessions,
-            snapshotDate = snapshotDate,
-            month = month
-        )
     }
 
     override fun getDailyStatistics(date: LocalDate): DailyStatisticsRecord {
@@ -181,41 +102,90 @@ class StatisticsRepository(
         }.sortedBy { it.endedAtEpochMillis }
     }
 
-    fun uploadCurrentStatisticsToFirebase(
-        snapshotDate: LocalDate = LocalDate.now(),
-        month: YearMonth = YearMonth.from(snapshotDate),
-        onSuccess: () -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        val statistics = getStatisticsSnapshot(snapshotDate, month)
-        firebaseRepository.saveCurrentStudyStatistics(
-            statistics = statistics,
-            onSuccess = onSuccess,
-            onError = onError
-        )
-    }
-
-    fun loadCurrentStatisticsFromFirebase(
-        onSuccess: (StudyStatistics?) -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        firebaseRepository.loadCurrentStudyStatistics(
-            onSuccess = onSuccess,
-            onError = onError
-        )
+    override fun getLastSyncEpochMillis(): Long? {
+        return preferences.takeIf { it.contains(LAST_SYNC_EPOCH_MILLIS_KEY) }
+            ?.getLong(LAST_SYNC_EPOCH_MILLIS_KEY, 0L)
     }
 
     private fun saveSessions(sessions: List<StudySessionRecord>) {
+        saveSessions(sessions, syncMode = SessionSyncMode.REPLACE_ALL)
+    }
+
+    fun syncLocalSessionsFromFirebase(
+        onSuccess: (() -> Unit)? = null,
+        onError: ((Exception) -> Unit)? = null
+    ) {
+        firebaseRepository.loadCurrentStudySessions(
+            onSuccess = { sessions ->
+                val syncedSessions = sessions.orEmpty().sortedBy { it.endedAtEpochMillis }
+                saveSessions(syncedSessions, syncMode = SessionSyncMode.NONE)
+                markSyncCompleted()
+                onSuccess?.invoke()
+            },
+            onError = { error ->
+                onError?.invoke(error)
+            }
+        )
+    }
+
+    private fun saveSessions(
+        sessions: List<StudySessionRecord>,
+        syncMode: SessionSyncMode,
+        addedSession: StudySessionRecord? = null
+    ) {
         val jsonArray = JSONArray()
         sessions.forEach { session ->
             jsonArray.put(session.toJson())
         }
         preferences.edit().putString(SESSIONS_KEY, jsonArray.toString()).apply()
+        syncBestFocusScoreToFirebase(sessions)
+        when (syncMode) {
+            SessionSyncMode.NONE -> Unit
+            SessionSyncMode.REPLACE_ALL -> syncSessionsToFirebase(sessions)
+            SessionSyncMode.ADD_ONE -> {
+                val session = addedSession ?: return
+                syncSessionToFirebase(session)
+            }
+        }
+    }
+
+    private fun syncSessionsToFirebase(sessions: List<StudySessionRecord>) {
+        firebaseRepository.saveCurrentStudySessions(
+            sessions = sessions,
+            onSuccess = { markSyncCompleted() },
+            onError = {}
+        )
+    }
+
+    private fun syncSessionToFirebase(session: StudySessionRecord) {
+        firebaseRepository.addCurrentStudySession(
+            session = session,
+            onSuccess = { markSyncCompleted() },
+            onError = {}
+        )
+    }
+
+    private fun markSyncCompleted() {
+        preferences.edit()
+            .putLong(LAST_SYNC_EPOCH_MILLIS_KEY, System.currentTimeMillis())
+            .apply()
+    }
+
+    private fun syncBestFocusScoreToFirebase(sessions: List<StudySessionRecord>) {
+        val bestRecord = StatisticsAggregator.buildDailyPeakScoreRecords(sessions)
+            .maxWithOrNull(compareBy<DailyStatisticsRecord> { it.focusScore }.thenBy { it.date })
+            ?: DailyStatisticsRecord()
+
+        firebaseRepository.updateCurrentBestFocusScore(
+            bestFocusScore = bestRecord.focusScore,
+            bestFocusScoreCompletedAt = bestRecord.date
+        )
     }
 
     companion object {
         private const val PREFERENCES_NAME = "statistics_repository"
         private const val SESSIONS_KEY = "statistics.sessions"
+        private const val LAST_SYNC_EPOCH_MILLIS_KEY = "statistics.last_sync_epoch_millis"
         @Volatile private var instance: StatisticsRepository? = null
 
         fun getInstance(context: Context): StatisticsRepository {
@@ -224,6 +194,12 @@ class StatisticsRepository(
             }
         }
     }
+}
+
+private enum class SessionSyncMode {
+    NONE,
+    REPLACE_ALL,
+    ADD_ONE
 }
 
 object StatisticsAggregator {
@@ -290,6 +266,35 @@ object StatisticsAggregator {
                     record.interruptedMinutes > 0 ||
                     record.completedSessions > 0
             }
+    }
+
+    fun buildDailyPeakScoreRecords(sessions: List<StudySessionRecord>): List<DailyStatisticsRecord> {
+        return sessions
+            .mapNotNull { session ->
+                val date = session.toLocalDate() ?: return@mapNotNull null
+                DailyStatisticsRecord(
+                    date = date.toString(),
+                    studyMinutes = session.studyMinutes,
+                    interruptionCount = session.interruptionCount,
+                    interruptedMinutes = session.interruptedMinutes,
+                    completedSessions = session.completedSessions,
+                    focusScore = calculateFocusScore(
+                        studyMinutes = session.studyMinutes,
+                        interruptionCount = session.interruptionCount,
+                        interruptedMinutes = session.interruptedMinutes,
+                        completedSessions = session.completedSessions
+                    )
+                )
+            }
+            .groupBy { it.date }
+            .mapNotNull { (_, records) ->
+                records.maxWithOrNull(
+                    compareBy<DailyStatisticsRecord> { it.focusScore }
+                        .thenBy { it.studyMinutes }
+                        .thenBy { it.completedSessions }
+                )
+            }
+            .sortedBy { it.date }
     }
 
     fun calculateFocusScore(

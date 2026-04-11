@@ -1,17 +1,36 @@
 package com.group10.smartstudytimer
 
+import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : AppCompatActivity() {
 
+    private val statisticsRepository: StatisticsRepository by lazy {
+        StatisticsRepository.getInstance(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser == null || currentUser.isAnonymous) {
+            startActivity(Intent(this, AuthActivity::class.java))
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_main)
 
+        statisticsRepository.syncLocalSessionsFromFirebase(
+            onSuccess = { setupNavigation() },
+            onError = { setupNavigation() }
+        )
+    }
+
+    private fun setupNavigation() {
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNavigationView)
 
         // Default page
@@ -26,8 +45,8 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 R.id.statistics -> {
-                    Toast.makeText(this, "Under development, coming soon", Toast.LENGTH_SHORT).show()
-                    false
+                    loadFragment(Statistic())
+                    true
                 }
 
                 R.id.monitor -> {
@@ -36,8 +55,8 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 R.id.profile -> {
-                    Toast.makeText(this, "Under development, coming soon", Toast.LENGTH_SHORT).show()
-                    false
+                    loadFragment(Profile())
+                    true
                 }
 
                 else -> false

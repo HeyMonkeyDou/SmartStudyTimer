@@ -31,6 +31,15 @@
             android:layout_marginTop="8dp"
             android:text="uid: Not signed in" />
 
+        <ImageView
+            android:id="@+id/avatarPreviewImage"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:layout_marginTop="12dp"
+            android:contentDescription="Avatar preview"
+            android:scaleType="fitCenter"
+            android:src="@drawable/cat" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -62,9 +71,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:hint="Avatar ID"
+            android:hint="Avatar ID: cat/chicken/panda/rabbit"
             android:inputType="text"
-            android:text="avatar_blue" />
+            android:text="" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -99,31 +108,86 @@
                 android:id="@+id/loadUserButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
                 android:layout_weight="1"
                 android:text="Load User" />
-
-            <Button
-                android:id="@+id/saveRankButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="Save Rank" />
         </LinearLayout>
-
-        <Button
-            android:id="@+id/loadLeaderboardButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Load Leaderboard" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:text="Statistics"
+            android:text="Profile API Test"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/loadProfileHeaderButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:text="Load Header" />
+
+            <Button
+                android:id="@+id/loadBestRecordButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Load Best Record" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/loadProfileLeaderboardButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:text="Load Profile Rank" />
+
+            <Button
+                android:id="@+id/loadScoreHistoryButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Load Score History" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/shareBestRecordImageButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Share Best Record Image" />
+
+        <TextView
+            android:id="@+id/profilePreviewText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#EEEEEE"
+            android:minHeight="120dp"
+            android:padding="12dp"
+            android:text="profile: null" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="Sessions"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -144,22 +208,8 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="calendarMonth" />
-
-        <EditText
-            android:id="@+id/calendarMonthInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="March 2026"
-            android:inputType="text" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Daily Record Editor"
+            android:text="Session Editor"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -167,10 +217,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="dayDate" />
+            android:text="sessionDate" />
 
         <EditText
-            android:id="@+id/dayDateInput"
+            android:id="@+id/sessionDateInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -181,10 +231,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="dayStudyMinutes" />
+            android:text="studyMinutes" />
 
         <EditText
-            android:id="@+id/dayStudyMinutesInput"
+            android:id="@+id/sessionStudyMinutesInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -194,10 +244,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="dayInterruptionCount" />
+            android:text="interruptionCount" />
 
         <EditText
-            android:id="@+id/dayInterruptionCountInput"
+            android:id="@+id/sessionInterruptionCountInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -207,10 +257,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="dayInterruptedMinutes" />
+            android:text="interruptedMinutes" />
 
         <EditText
-            android:id="@+id/dayInterruptedMinutesInput"
+            android:id="@+id/sessionInterruptedMinutesInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -220,10 +270,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="dayCompletedSessions" />
+            android:text="completedSessions" />
 
         <EditText
-            android:id="@+id/dayCompletedSessionsInput"
+            android:id="@+id/sessionCompletedSessionsInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -233,60 +283,61 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="dayFocusScore" />
+            android:text="status" />
+
+        <Spinner
+            android:id="@+id/sessionStatusSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="mode" />
+
+        <Spinner
+            android:id="@+id/sessionModeSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="note" />
 
         <EditText
-            android:id="@+id/dayFocusScoreInput"
+            android:id="@+id/sessionNoteInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:inputType="number" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/loadDayButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:text="Load Day" />
-
-            <Button
-                android:id="@+id/saveDayButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="Save Day" />
-        </LinearLayout>
+            android:inputType="text" />
 
         <Button
-            android:id="@+id/deleteDayButton"
+            android:id="@+id/addSessionButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Delete Day" />
+            android:layout_marginTop="16dp"
+            android:text="Add" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="records"
+            android:text="sessions"
             android:textSize="16sp"
             android:textStyle="bold" />
 
         <EditText
-            android:id="@+id/recordsInput"
+            android:id="@+id/sessionsInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:gravity="top|start"
-            android:hint="One line per day: date,studyMinutes,interruptionCount,interruptedMinutes,completedSessions,focusScore"
+            android:hint="One line per session: sessionId | endedAtEpochMillis | studyMinutes | interruptionCount | interruptedMinutes | completedSessions | status | mode | note"
             android:inputType="textMultiLine"
             android:minLines="6"
             android:scrollbars="vertical" />
@@ -298,29 +349,6 @@
             android:text="Local Storage"
             android:textSize="16sp"
             android:textStyle="bold" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/saveLocalStatisticsButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:text="Save Local" />
-
-            <Button
-                android:id="@+id/loadLocalStatisticsButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="Load Local" />
-        </LinearLayout>
 
         <Button
             android:id="@+id/clearLocalStatisticsButton"
@@ -344,20 +372,20 @@
             android:orientation="horizontal">
 
             <Button
-                android:id="@+id/saveServerStatisticsButton"
+                android:id="@+id/loadServerStatisticsButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                android:text="Save Server" />
+                android:text="Load Server" />
 
             <Button
-                android:id="@+id/loadServerStatisticsButton"
+                android:id="@+id/saveServerStatisticsButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
-                android:text="Load Server" />
+                android:text="Save Server" />
         </LinearLayout>
 
         <Button

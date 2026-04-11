@@ -10,28 +10,35 @@ class FirebaseRepository(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
 
-    fun ensureAnonymousUser(
+    fun ensureSignedInUser(
         onSuccess: (String) -> Unit,
         onError: (Exception) -> Unit
     ) {
         val currentUser = auth.currentUser
-        if (currentUser != null) {
-            onSuccess(currentUser.uid)
+        if (currentUser?.isAnonymous == true) {
+            onError(IllegalStateException("Anonymous users are not allowed in this build."))
+            return
+        }
+        val uid = currentUser?.uid
+        if (!uid.isNullOrBlank()) {
+            onSuccess(uid)
             return
         }
 
-        auth.signInAnonymously()
-            .addOnSuccessListener { result ->
-                val uid = result.user?.uid
-                if (uid.isNullOrBlank()) {
-                    onError(IllegalStateException("Firebase returned an empty uid."))
-                } else {
-                    onSuccess(uid)
-                }
-            }
-            .addOnFailureListener { error ->
-                onError(error)
-            }
+        onError(IllegalStateException("User is not signed in."))
+    }
+
+    fun getCurrentUserId(): String? {
+        val uid = auth.currentUser?.uid
+        return uid?.takeIf { it.isNotBlank() }
+    }
+
+    @Deprecated("Use ensureSignedInUser instead.")
+    fun ensureAnonymousUser(
+        onSuccess: (String) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(onSuccess, onError)
     }
 
     fun saveCurrentUserProfile(
@@ -41,14 +48,14 @@ class FirebaseRepository(
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        ensureAnonymousUser(
+        ensureSignedInUser(
             onSuccess = { uid ->
                 saveUserProfile(
                     profile = UserProfile(
                         uid = uid,
-                        displayName = displayName,
+                        displayName = displayName.ifBlank { uid.take(6) },
                         totalFocusMinutes = totalFocusMinutes,
-                        avatarId = avatarId
+                        avatarId = AvatarAssets.resolveAvatarId(uid, avatarId)
                     ),
                     onSuccess = onSuccess,
                     onError = onError
@@ -63,16 +70,20 @@ class FirebaseRepository(
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
+        val resolvedAvatarId = AvatarAssets.resolveAvatarId(profile.uid, profile.avatarId)
+        val resolvedDisplayName = profile.displayName.ifBlank { profile.uid.take(6) }
         val payload = hashMapOf(
-            "displayName" to profile.displayName,
+            "displayName" to resolvedDisplayName,
             "totalFocusMinutes" to profile.totalFocusMinutes,
-            "avatarId" to profile.avatarId,
+            "avatarId" to resolvedAvatarId,
+            "bestFocusScore" to profile.bestFocusScore,
+            "bestFocusScoreCompletedAt" to profile.bestFocusScoreCompletedAt,
             "updatedAt" to FieldValue.serverTimestamp()
         )
 
         firestore.collection(USERS_COLLECTION)
             .document(profile.uid)
-            .set(payload)
+            .set(payload, com.google.firebase.firestore.SetOptions.merge())
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener { error -> onError(error) }
     }
@@ -81,7 +92,7 @@ class FirebaseRepository(
         onSuccess: (UserProfile?) -> Unit,
         onError: (Exception) -> Unit
     ) {
-        ensureAnonymousUser(
+        ensureSignedInUser(
             onSuccess = { uid -> loadUserProfile(uid, onSuccess, onError) },
             onError = onError
         )
@@ -105,56 +116,13 @@ class FirebaseRepository(
             .addOnFailureListener { error -> onError(error) }
     }
 
-    fun saveCurrentLeaderboardEntry(
-        displayName: String,
-        totalFocusMinutes: Long,
-        avatarId: String,
-        onSuccess: () -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        ensureAnonymousUser(
-            onSuccess = { uid ->
-                saveLeaderboardEntry(
-                    entry = LeaderboardEntry(
-                        uid = uid,
-                        displayName = displayName,
-                        totalFocusMinutes = totalFocusMinutes,
-                        avatarId = avatarId
-                    ),
-                    onSuccess = onSuccess,
-                    onError = onError
-                )
-            },
-            onError = onError
-        )
-    }
-
-    fun saveLeaderboardEntry(
-        entry: LeaderboardEntry,
-        onSuccess: () -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        val payload = hashMapOf(
-            "displayName" to entry.displayName,
-            "totalFocusMinutes" to entry.totalFocusMinutes,
-            "avatarId" to entry.avatarId,
-            "updatedAt" to FieldValue.serverTimestamp()
-        )
-
-        firestore.collection(LEADERBOARD_COLLECTION)
-            .document(entry.uid)
-            .set(payload)
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { error -> onError(error) }
-    }
-
     fun loadLeaderboard(
         limit: Long = 10,
         onSuccess: (List<LeaderboardEntry>) -> Unit,
         onError: (Exception) -> Unit
     ) {
-        firestore.collection(LEADERBOARD_COLLECTION)
-            .orderBy("totalFocusMinutes", Query.Direction.DESCENDING)
+        firestore.collection(USERS_COLLECTION)
+            .orderBy("bestFocusScore", Query.Direction.DESCENDING)
             .limit(limit)
             .get()
             .addOnSuccessListener { result ->
@@ -163,16 +131,31 @@ class FirebaseRepository(
             .addOnFailureListener { error -> onError(error) }
     }
 
-    fun saveCurrentStudyStatistics(
-        statistics: StudyStatistics,
-        onSuccess: () -> Unit,
-        onError: (Exception) -> Unit
+    fun updateCurrentBestFocusScore(
+        bestFocusScore: Long,
+        bestFocusScoreCompletedAt: String,
+        onSuccess: () -> Unit = {},
+        onError: (Exception) -> Unit = {}
     ) {
-        ensureAnonymousUser(
+        ensureSignedInUser(
             onSuccess = { uid ->
-                saveStudyStatistics(
-                    statistics = statistics.copy(uid = uid),
-                    onSuccess = onSuccess,
+                loadUserProfile(
+                    uid = uid,
+                    onSuccess = { profile ->
+                        val payload = hashMapOf(
+                            "displayName" to profile?.displayName.orEmpty().ifBlank { uid.take(6) },
+                            "avatarId" to AvatarAssets.resolveAvatarId(uid, profile?.avatarId),
+                            "bestFocusScore" to bestFocusScore,
+                            "bestFocusScoreCompletedAt" to bestFocusScoreCompletedAt,
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+
+                        firestore.collection(USERS_COLLECTION)
+                            .document(uid)
+                            .set(payload, com.google.firebase.firestore.SetOptions.merge())
+                            .addOnSuccessListener { onSuccess() }
+                            .addOnFailureListener { error -> onError(error) }
+                    },
                     onError = onError
                 )
             },
@@ -180,75 +163,163 @@ class FirebaseRepository(
         )
     }
 
-    fun saveStudyStatistics(
-        statistics: StudyStatistics,
+    fun saveCurrentStudySessions(
+        sessions: List<StudySessionRecord>,
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        val payload = statistics.toFirestoreMap().apply {
-            put("updatedAt", FieldValue.serverTimestamp())
-        }
-
-        firestore.collection(STATISTICS_COLLECTION)
-            .document(statistics.uid)
-            .set(payload)
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { error -> onError(error) }
-    }
-
-    fun loadCurrentStudyStatistics(
-        onSuccess: (StudyStatistics?) -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        ensureAnonymousUser(
-            onSuccess = { uid -> loadStudyStatistics(uid, onSuccess, onError) },
+        ensureSignedInUser(
+            onSuccess = { uid -> saveStudySessions(uid, sessions, onSuccess, onError) },
             onError = onError
         )
     }
 
-    fun loadStudyStatistics(
+    fun saveStudySessions(
         uid: String,
-        onSuccess: (StudyStatistics?) -> Unit,
+        sessions: List<StudySessionRecord>,
+        onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        firestore.collection(STATISTICS_COLLECTION)
-            .document(uid)
+        deleteStudySessions(
+            uid = uid,
+            onSuccess = {
+                if (sessions.isEmpty()) {
+                    onSuccess()
+                    return@deleteStudySessions
+                }
+
+                val batch = firestore.batch()
+                batch.set(
+                    sessionRootDocument(uid),
+                    hashMapOf(
+                        "sessionCount" to sessions.size,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+                sessions.forEach { session ->
+                    val document = sessionDocuments(uid).document(session.sessionId)
+                    batch.set(
+                        document,
+                        session.toFirestoreMap().apply { put("updatedAt", FieldValue.serverTimestamp()) }
+                    )
+                }
+                batch.commit()
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { error -> onError(error) }
+            },
+            onError = onError
+        )
+    }
+
+    fun addCurrentStudySession(
+        session: StudySessionRecord,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { uid -> addStudySession(uid, session, onSuccess, onError) },
+            onError = onError
+        )
+    }
+
+    fun addStudySession(
+        uid: String,
+        session: StudySessionRecord,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        val batch = firestore.batch()
+        batch.set(
+            sessionRootDocument(uid),
+            hashMapOf(
+                "updatedAt" to FieldValue.serverTimestamp()
+            ),
+            com.google.firebase.firestore.SetOptions.merge()
+        )
+        batch.set(
+            sessionDocuments(uid).document(session.sessionId),
+            session.toFirestoreMap().apply { put("updatedAt", FieldValue.serverTimestamp()) }
+        )
+        batch.commit()
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { error -> onError(error) }
+    }
+
+    fun loadCurrentStudySessions(
+        onSuccess: (List<StudySessionRecord>?) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { uid -> loadStudySessions(uid, onSuccess, onError) },
+            onError = onError
+        )
+    }
+
+    fun loadStudySessions(
+        uid: String,
+        onSuccess: (List<StudySessionRecord>?) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        sessionDocuments(uid)
+            .orderBy("endedAtEpochMillis", Query.Direction.ASCENDING)
             .get()
-            .addOnSuccessListener { snapshot ->
-                if (snapshot.exists()) {
-                    onSuccess(snapshot.toStudyStatistics())
-                } else {
+            .addOnSuccessListener { querySnapshot ->
+                if (querySnapshot.isEmpty) {
                     onSuccess(null)
+                } else {
+                    onSuccess(querySnapshot.documents.map { it.toStudySessionRecord() })
                 }
             }
             .addOnFailureListener { error -> onError(error) }
     }
 
-    fun deleteCurrentStudyStatistics(
+    fun deleteCurrentStudySessions(
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        ensureAnonymousUser(
-            onSuccess = { uid -> deleteStudyStatistics(uid, onSuccess, onError) },
+        ensureSignedInUser(
+            onSuccess = { uid -> deleteStudySessions(uid, onSuccess, onError) },
             onError = onError
         )
     }
 
-    fun deleteStudyStatistics(
+    fun deleteStudySessions(
         uid: String,
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        firestore.collection(STATISTICS_COLLECTION)
-            .document(uid)
-            .delete()
-            .addOnSuccessListener { onSuccess() }
+        sessionDocuments(uid)
+            .get()
+            .addOnSuccessListener { querySnapshot ->
+                if (querySnapshot.isEmpty) {
+                    sessionRootDocument(uid)
+                        .delete()
+                        .addOnSuccessListener { onSuccess() }
+                        .addOnFailureListener { error -> onError(error) }
+                    return@addOnSuccessListener
+                }
+
+                val batch = firestore.batch()
+                querySnapshot.documents.forEach { document ->
+                    batch.delete(document.reference)
+                }
+                batch.delete(sessionRootDocument(uid))
+                batch.commit()
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { error -> onError(error) }
+            }
             .addOnFailureListener { error -> onError(error) }
     }
 
     companion object {
         private const val USERS_COLLECTION = "users"
-        private const val LEADERBOARD_COLLECTION = "leaderboard"
-        private const val STATISTICS_COLLECTION = "statistics"
+        private const val SESSIONS_COLLECTION = "study_sessions"
+        private const val SESSION_ITEMS_SUBCOLLECTION = "items"
     }
+
+    private fun sessionDocuments(uid: String) =
+        sessionRootDocument(uid).collection(SESSION_ITEMS_SUBCOLLECTION)
+
+    private fun sessionRootDocument(uid: String) =
+        firestore.collection(SESSIONS_COLLECTION).document(uid)
 }

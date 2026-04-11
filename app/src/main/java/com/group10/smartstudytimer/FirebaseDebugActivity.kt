@@ -1,23 +1,35 @@
 package com.group10.smartstudytimer
 
-import android.content.Context
 import android.os.Bundle
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 class FirebaseDebugActivity : AppCompatActivity() {
 
     private val repository = FirebaseRepository()
-    private val localPreferences by lazy {
-        getSharedPreferences(LOCAL_STATISTICS_PREFS, Context.MODE_PRIVATE)
+    private val profileRepository by lazy {
+        ProfileRepository(this)
+    }
+    private val statisticsRepository by lazy {
+        StatisticsRepository.getInstance(this)
     }
 
     private lateinit var statusText: TextView
     private lateinit var uidText: TextView
+    private lateinit var avatarPreviewImage: ImageView
+    private lateinit var profilePreviewText: TextView
     private lateinit var leaderboardText: TextView
     private lateinit var statisticsPreviewText: TextView
     private lateinit var logsText: TextView
@@ -26,14 +38,15 @@ class FirebaseDebugActivity : AppCompatActivity() {
     private lateinit var avatarIdInput: EditText
 
     private lateinit var snapshotDateInput: EditText
-    private lateinit var calendarMonthInput: EditText
-    private lateinit var dayDateInput: EditText
-    private lateinit var dayStudyMinutesInput: EditText
-    private lateinit var dayInterruptionCountInput: EditText
-    private lateinit var dayInterruptedMinutesInput: EditText
-    private lateinit var dayCompletedSessionsInput: EditText
-    private lateinit var dayFocusScoreInput: EditText
-    private lateinit var recordsInput: EditText
+    private lateinit var sessionDateInput: EditText
+    private lateinit var sessionStudyMinutesInput: EditText
+    private lateinit var sessionInterruptionCountInput: EditText
+    private lateinit var sessionInterruptedMinutesInput: EditText
+    private lateinit var sessionCompletedSessionsInput: EditText
+    private lateinit var sessionStatusSpinner: Spinner
+    private lateinit var sessionModeSpinner: Spinner
+    private lateinit var sessionNoteInput: EditText
+    private lateinit var sessionsInput: EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,6 +54,8 @@ class FirebaseDebugActivity : AppCompatActivity() {
 
         statusText = findViewById(R.id.statusText)
         uidText = findViewById(R.id.uidText)
+        avatarPreviewImage = findViewById(R.id.avatarPreviewImage)
+        profilePreviewText = findViewById(R.id.profilePreviewText)
         leaderboardText = findViewById(R.id.leaderboardText)
         statisticsPreviewText = findViewById(R.id.statisticsPreviewText)
         logsText = findViewById(R.id.logsText)
@@ -48,42 +63,67 @@ class FirebaseDebugActivity : AppCompatActivity() {
         totalFocusMinutesInput = findViewById(R.id.totalFocusMinutesInput)
         avatarIdInput = findViewById(R.id.avatarIdInput)
         snapshotDateInput = findViewById(R.id.snapshotDateInput)
-        calendarMonthInput = findViewById(R.id.calendarMonthInput)
-        dayDateInput = findViewById(R.id.dayDateInput)
-        dayStudyMinutesInput = findViewById(R.id.dayStudyMinutesInput)
-        dayInterruptionCountInput = findViewById(R.id.dayInterruptionCountInput)
-        dayInterruptedMinutesInput = findViewById(R.id.dayInterruptedMinutesInput)
-        dayCompletedSessionsInput = findViewById(R.id.dayCompletedSessionsInput)
-        dayFocusScoreInput = findViewById(R.id.dayFocusScoreInput)
-        recordsInput = findViewById(R.id.recordsInput)
+        sessionDateInput = findViewById(R.id.sessionDateInput)
+        sessionStudyMinutesInput = findViewById(R.id.sessionStudyMinutesInput)
+        sessionInterruptionCountInput = findViewById(R.id.sessionInterruptionCountInput)
+        sessionInterruptedMinutesInput = findViewById(R.id.sessionInterruptedMinutesInput)
+        sessionCompletedSessionsInput = findViewById(R.id.sessionCompletedSessionsInput)
+        sessionStatusSpinner = findViewById(R.id.sessionStatusSpinner)
+        sessionModeSpinner = findViewById(R.id.sessionModeSpinner)
+        sessionNoteInput = findViewById(R.id.sessionNoteInput)
+        sessionsInput = findViewById(R.id.sessionsInput)
+        setupSessionSelectors()
+        renderAvatarPreview(AvatarAssets.CAT)
 
         findViewById<Button>(R.id.signInButton).setOnClickListener { signIn() }
         findViewById<Button>(R.id.saveUserButton).setOnClickListener { saveUser() }
         findViewById<Button>(R.id.loadUserButton).setOnClickListener { loadUser() }
-        findViewById<Button>(R.id.saveRankButton).setOnClickListener { saveRank() }
-        findViewById<Button>(R.id.loadLeaderboardButton).setOnClickListener { loadLeaderboard() }
+        findViewById<Button>(R.id.loadProfileHeaderButton).setOnClickListener { loadProfileHeader() }
+        findViewById<Button>(R.id.loadBestRecordButton).setOnClickListener { loadBestRecord() }
+        findViewById<Button>(R.id.loadProfileLeaderboardButton).setOnClickListener { loadProfileLeaderboard() }
+        findViewById<Button>(R.id.loadScoreHistoryButton).setOnClickListener { loadScoreHistory() }
+        findViewById<Button>(R.id.shareBestRecordImageButton).setOnClickListener { shareBestRecordImage() }
 
-        findViewById<Button>(R.id.loadDayButton).setOnClickListener { loadDayFromFormRecords() }
-        findViewById<Button>(R.id.saveDayButton).setOnClickListener { saveDayToFormRecords() }
-        findViewById<Button>(R.id.deleteDayButton).setOnClickListener { deleteDayFromFormRecords() }
+        findViewById<Button>(R.id.addSessionButton).setOnClickListener { addOneSessionToForm() }
 
-        findViewById<Button>(R.id.saveLocalStatisticsButton).setOnClickListener { saveLocalStatistics() }
-        findViewById<Button>(R.id.loadLocalStatisticsButton).setOnClickListener { loadLocalStatistics() }
-        findViewById<Button>(R.id.clearLocalStatisticsButton).setOnClickListener { clearLocalStatistics() }
+        findViewById<Button>(R.id.clearLocalStatisticsButton).setOnClickListener { clearLocalSessions() }
 
-        findViewById<Button>(R.id.saveServerStatisticsButton).setOnClickListener { saveServerStatistics() }
-        findViewById<Button>(R.id.loadServerStatisticsButton).setOnClickListener { loadServerStatistics() }
-        findViewById<Button>(R.id.clearServerStatisticsButton).setOnClickListener { clearServerStatistics() }
+        findViewById<Button>(R.id.saveServerStatisticsButton).setOnClickListener { saveServerSessions() }
+        findViewById<Button>(R.id.loadServerStatisticsButton).setOnClickListener { loadServerSessions() }
+        findViewById<Button>(R.id.clearServerStatisticsButton).setOnClickListener { clearServerSessions() }
 
-        populateDefaultStatisticsFields()
+        loadLocalSessionsIntoForm()
+        loadDebugDataOnStart()
+    }
+
+    private fun loadDebugDataOnStart() {
+        signIn()
+        statisticsRepository.syncLocalSessionsFromFirebase(
+            onSuccess = {
+                loadLocalSessionsIntoForm()
+                loadUser()
+                loadProfileHeader()
+                loadBestRecord()
+                loadProfileLeaderboard()
+                loadScoreHistory()
+            },
+            onError = {
+                loadLocalSessionsIntoForm()
+                loadUser()
+                loadProfileHeader()
+                loadBestRecord()
+                loadProfileLeaderboard()
+                loadScoreHistory()
+            }
+        )
     }
 
     private fun signIn() {
-        setStatus("Signing in...")
-        repository.ensureAnonymousUser(
+        setStatus("Checking session...")
+        repository.ensureSignedInUser(
             onSuccess = { uid ->
                 uidText.text = "uid: $uid"
-                appendLog("Anonymous sign-in success: $uid")
+                appendLog("Signed-in user: $uid")
                 setStatus("Signed in")
             },
             onError = { error -> showError("Sign in failed", error) }
@@ -96,7 +136,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
         repository.saveCurrentUserProfile(
             displayName = displayNameInput.text.toString().trim(),
             totalFocusMinutes = totalFocusMinutes,
-            avatarId = avatarIdInput.text.toString().trim().ifBlank { "avatar_blue" },
+            avatarId = avatarIdInput.text.toString().trim(),
             onSuccess = {
                 appendLog("User profile saved.")
                 setStatus("User saved")
@@ -119,6 +159,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
                 displayNameInput.setText(profile.displayName)
                 totalFocusMinutesInput.setText(profile.totalFocusMinutes.toString())
                 avatarIdInput.setText(profile.avatarId)
+                renderAvatarPreview(profile.avatarId)
                 appendLog("User profile loaded.")
                 setStatus("User loaded")
             },
@@ -126,261 +167,257 @@ class FirebaseDebugActivity : AppCompatActivity() {
         )
     }
 
-    private fun saveRank() {
-        val totalFocusMinutes = parseLong(totalFocusMinutesInput, "Total focus minutes") ?: return
-        setStatus("Saving leaderboard entry...")
-        repository.saveCurrentLeaderboardEntry(
-            displayName = displayNameInput.text.toString().trim(),
-            totalFocusMinutes = totalFocusMinutes,
-            avatarId = avatarIdInput.text.toString().trim().ifBlank { "avatar_blue" },
-            onSuccess = {
-                appendLog("Leaderboard entry saved.")
-                setStatus("Leaderboard saved")
+    private fun loadProfileHeader() {
+        setStatus("Loading profile header...")
+        profileRepository.loadProfileHeader(
+            onSuccess = { profileHeader ->
+                uidText.text = "uid: ${profileHeader.userId}"
+                profilePreviewText.text = buildString {
+                    appendLine("profileHeader:")
+                    appendLine("userId: ${profileHeader.userId}")
+                    appendLine("displayName: ${profileHeader.displayName}")
+                    appendLine("avatarId: ${profileHeader.avatarId}")
+                    appendLine("recentSyncTime: ${formatEpochMillis(profileHeader.recentSyncTimeEpochMillis)}")
+                }.trim()
+                renderAvatarPreview(profileHeader.avatarId)
+                appendLog("Profile header loaded.")
+                setStatus("Profile header loaded")
             },
-            onError = { error -> showError("Save leaderboard failed", error) }
+            onError = { error -> showError("Load profile header failed", error) }
         )
     }
 
-    private fun loadLeaderboard() {
-        setStatus("Loading leaderboard...")
-        repository.loadLeaderboard(
+    private fun loadBestRecord() {
+        val bestRecord = profileRepository.getBestStudyRecord()
+        profilePreviewText.text = if (bestRecord == null) {
+            "bestStudyRecord: null"
+        } else {
+            buildString {
+                appendLine("bestStudyRecord:")
+                appendLine("focusScore: ${bestRecord.focusScore}")
+                appendLine("completedAt: ${bestRecord.completedAt}")
+            }.trim()
+        }
+        appendLog("Best study record loaded.")
+        setStatus("Best study record loaded")
+    }
+
+    private fun loadProfileLeaderboard() {
+        setStatus("Loading profile leaderboard...")
+        profileRepository.loadLeaderboard(
             onSuccess = { entries ->
                 leaderboardText.text = buildString {
-                    appendLine("leaderboardEntryCount: ${entries.size}")
+                    appendLine("profileLeaderboardCount: ${entries.size}")
                     if (entries.isEmpty()) {
-                        appendLine("leaderboardEntries: []")
+                        appendLine("profileLeaderboard: []")
                     } else {
-                        appendLine("leaderboardEntries:")
-                        entries.forEachIndexed { index, entry ->
+                        appendLine("profileLeaderboard:")
+                        entries.forEach { entry ->
                             appendLine(
-                                "index=${index + 1}, uid=${entry.uid}, displayName=${entry.displayName}, totalFocusMinutes=${entry.totalFocusMinutes}, avatarId=${entry.avatarId}"
+                                "rank=${entry.rank}, userId=${entry.userId}, displayName=${entry.displayName}, avatarId=${entry.avatarId}, score=${entry.score}"
                             )
                         }
                     }
                 }.trim()
-                appendLog("Loaded ${entries.size} leaderboard entries.")
-                setStatus("Leaderboard loaded")
+                appendLog("Profile leaderboard loaded.")
+                setStatus("Profile leaderboard loaded")
             },
-            onError = { error -> showError("Load leaderboard failed", error) }
+            onError = { error -> showError("Load profile leaderboard failed", error) }
         )
     }
 
-    private fun loadDayFromFormRecords() {
-        val targetDate = parseDate(dayDateInput, "dayDate") ?: return
-        val records = currentRecords()
-        val record = records.firstOrNull { it.date == targetDate.toString() }
-        if (record == null) {
-            clearDayInputs(keepDate = true)
-            appendLog("No record found for ${targetDate}.")
-            setStatus("Day not found")
-            return
-        }
-
-        bindDayRecord(record)
-        appendLog("Loaded record for ${targetDate}.")
-        setStatus("Day loaded")
+    private fun loadScoreHistory() {
+        val history = profileRepository.getDailyScoreHistory()
+        profilePreviewText.text = buildString {
+            appendLine("scoreHistoryCount: ${history.size}")
+            if (history.isEmpty()) {
+                appendLine("scoreHistory: []")
+            } else {
+                appendLine("scoreHistory:")
+                history.forEach { entry ->
+                    appendLine("date=${entry.date}, score=${entry.score}")
+                }
+            }
+        }.trim()
+        appendLog("Score history loaded.")
+        setStatus("Score history loaded")
     }
 
-    private fun saveDayToFormRecords() {
-        val dayRecord = collectDayRecordFromInputs() ?: return
-        val mutableRecords = currentRecords().toMutableList()
-        val existingIndex = mutableRecords.indexOfFirst { it.date == dayRecord.date }
-        if (existingIndex >= 0) {
-            mutableRecords[existingIndex] = dayRecord
-        } else {
-            mutableRecords.add(dayRecord)
-        }
-        mutableRecords.sortBy { it.date }
-        recordsInput.setText(StatisticsDebugParser.formatRecords(mutableRecords))
-        refreshStatisticsFromInputs()
-        appendLog("Saved record for ${dayRecord.date} into form.")
-        setStatus("Day saved to form")
-    }
-
-    private fun deleteDayFromFormRecords() {
-        val targetDate = parseDate(dayDateInput, "dayDate") ?: return
-        val filteredRecords = currentRecords().filterNot { it.date == targetDate.toString() }
-        recordsInput.setText(StatisticsDebugParser.formatRecords(filteredRecords))
-        clearDayInputs(keepDate = true)
-        refreshStatisticsFromInputs()
-        appendLog("Deleted record for ${targetDate} from form.")
-        setStatus("Day deleted from form")
-    }
-
-    private fun saveLocalStatistics() {
-        val statistics = collectStatisticsFromInputs() ?: return
-        localPreferences.edit()
-            .putString(KEY_LOCAL_SNAPSHOT_DATE, statistics.snapshotDate)
-            .putString(KEY_LOCAL_CALENDAR_MONTH, statistics.calendarMonth)
-            .putString(KEY_LOCAL_RECORDS, StatisticsDebugParser.formatRecords(statistics.records))
-            .apply()
-        renderStatisticsPreview(statistics)
-        appendLog("Saved statistics locally.")
-        setStatus("Local statistics saved")
-    }
-
-    private fun loadLocalStatistics() {
-        val snapshotDate = localPreferences.getString(KEY_LOCAL_SNAPSHOT_DATE, null)
-        val calendarMonth = localPreferences.getString(KEY_LOCAL_CALENDAR_MONTH, null)
-        val recordsRaw = localPreferences.getString(KEY_LOCAL_RECORDS, null)
-        if (snapshotDate.isNullOrBlank() || calendarMonth.isNullOrBlank() || recordsRaw == null) {
-            appendLog("No local statistics saved.")
-            setStatus("No local statistics")
-            return
-        }
-
-        snapshotDateInput.setText(snapshotDate)
-        calendarMonthInput.setText(calendarMonth)
-        recordsInput.setText(recordsRaw)
-        refreshStatisticsFromInputs()
-        appendLog("Loaded local statistics.")
-        setStatus("Local statistics loaded")
-    }
-
-    private fun clearLocalStatistics() {
-        localPreferences.edit().clear().apply()
-        populateDefaultStatisticsFields()
-        appendLog("Cleared local statistics.")
-        setStatus("Local statistics cleared")
-    }
-
-    private fun saveServerStatistics() {
-        val statistics = collectStatisticsFromInputs() ?: return
-        setStatus("Saving server statistics...")
-        repository.saveCurrentStudyStatistics(
-            statistics = statistics,
+    private fun shareBestRecordImage() {
+        setStatus("Preparing best record image...")
+        profileRepository.shareBestRecordImage(
             onSuccess = {
-                renderStatisticsPreview(statistics)
-                appendLog("Saved statistics to server.")
-                setStatus("Server statistics saved")
+                appendLog("Best record image share sheet opened.")
+                setStatus("Best record image shared")
             },
-            onError = { error -> showError("Save server statistics failed", error) }
+            onNoData = {
+                appendLog("No best study record available to share as image.")
+                setStatus("No best study record")
+                Toast.makeText(this, "No best study record available to share", Toast.LENGTH_SHORT).show()
+            },
+            onError = { error ->
+                showError("Share best record image failed", error)
+            }
         )
     }
 
-    private fun loadServerStatistics() {
-        setStatus("Loading server statistics...")
-        repository.loadCurrentStudyStatistics(
-            onSuccess = { statistics ->
-                if (statistics == null) {
+    private fun addOneSessionToForm() {
+        val session = collectSessionRecordFromInputs() ?: return
+        val mutableSessions = parseCurrentSessions()?.toMutableList() ?: return
+        mutableSessions.add(session)
+        mutableSessions.sortBy { it.endedAtEpochMillis }
+        sessionsInput.setText(SessionDebugParser.formatSessions(mutableSessions))
+        bindSessionRecord(session)
+        refreshStatisticsFromInputs()
+        appendLog("Added one session ${session.sessionId} into form.")
+        setStatus("Added one session")
+    }
+
+    private fun clearLocalSessions() {
+        statisticsRepository.clearAllLocalStatistics()
+        sessionsInput.setText("")
+        clearSessionInputs()
+        refreshStatisticsFromInputs()
+        appendLog("Cleared local sessions.")
+        setStatus("Local sessions cleared")
+    }
+
+    private fun saveServerSessions() {
+        val sessions = parseCurrentSessions() ?: return
+        setStatus("Saving server sessions...")
+        repository.saveCurrentStudySessions(
+            sessions = sessions,
+            onSuccess = {
+                refreshStatisticsFromInputs()
+                appendLog("Saved ${sessions.size} sessions to server.")
+                setStatus("Server sessions saved")
+            },
+            onError = { error -> showError("Save server sessions failed", error) }
+        )
+    }
+
+    private fun loadServerSessions() {
+        setStatus("Loading server sessions...")
+        repository.loadCurrentStudySessions(
+            onSuccess = { sessions ->
+                if (sessions == null) {
                     statisticsPreviewText.text = "statistics: null"
-                    appendLog("No server statistics found.")
-                    setStatus("No server statistics")
-                    return@loadCurrentStudyStatistics
+                    appendLog("No server sessions found.")
+                    setStatus("No server sessions")
+                    return@loadCurrentStudySessions
                 }
 
-                uidText.text = "uid: ${statistics.uid}"
-                bindStatisticsToInputs(statistics)
-                renderStatisticsPreview(statistics)
-                appendLog("Loaded server statistics.")
-                setStatus("Server statistics loaded")
+                sessionsInput.setText(SessionDebugParser.formatSessions(sessions.sortedBy { it.endedAtEpochMillis }))
+                refreshStatisticsFromInputs()
+                appendLog("Loaded ${sessions.size} sessions from server.")
+                setStatus("Server sessions loaded")
             },
-            onError = { error -> showError("Load server statistics failed", error) }
+            onError = { error -> showError("Load server sessions failed", error) }
         )
     }
 
-    private fun clearServerStatistics() {
-        setStatus("Clearing server statistics...")
-        repository.deleteCurrentStudyStatistics(
+    private fun clearServerSessions() {
+        setStatus("Clearing server sessions...")
+        repository.deleteCurrentStudySessions(
             onSuccess = {
-                statisticsPreviewText.text = "statistics: null"
-                appendLog("Cleared server statistics.")
-                setStatus("Server statistics cleared")
+                sessionsInput.setText("")
+                clearSessionInputs()
+                refreshStatisticsFromInputs()
+                appendLog("Cleared server sessions.")
+                setStatus("Server sessions cleared")
             },
-            onError = { error -> showError("Clear server statistics failed", error) }
+            onError = { error -> showError("Clear server sessions failed", error) }
         )
     }
 
     private fun refreshStatisticsFromInputs() {
-        val statistics = collectStatisticsFromInputs() ?: return
-        bindStatisticsToInputs(statistics)
-        renderStatisticsPreview(statistics)
+        val sessions = parseCurrentSessions() ?: return
+        val statistics = collectStatisticsFromInputs(sessions) ?: return
+        renderStatisticsPreview(statistics, sessions)
     }
 
-    private fun collectStatisticsFromInputs(): StudyStatistics? {
+    private fun collectStatisticsFromInputs(
+        sessions: List<StudySessionRecord>
+    ): StudyStatistics? {
         val snapshotDate = parseDate(snapshotDateInput, "snapshotDate") ?: return null
-        val calendarMonth = calendarMonthInput.text.toString().trim().ifBlank {
-            "${snapshotDate.month.name.lowercase().replaceFirstChar { it.uppercase() }} ${snapshotDate.year}"
-        }
-        val records = try {
-            currentRecords()
-        } catch (error: IllegalArgumentException) {
-            Toast.makeText(this, error.message, Toast.LENGTH_LONG).show()
-            return null
-        }
-        val todayRecord = records.firstOrNull { it.date == snapshotDate.toString() }
-            ?: DailyStatisticsRecord(date = snapshotDate.toString())
-        val totalCompletedSessions = records.sumOf { it.completedSessions }
-        val thisWeekCompletedSessions = records
-            .filter { isSameWeek(LocalDate.parse(it.date), snapshotDate) }
-            .sumOf { it.completedSessions }
-
-        return StudyStatistics(
-            snapshotDate = snapshotDate.toString(),
-            focusScore = todayRecord.focusScore,
-            todayStudyMinutes = todayRecord.studyMinutes,
-            todayInterruptionCount = todayRecord.interruptionCount,
-            todayInterruptedMinutes = todayRecord.interruptedMinutes,
-            totalCompletedSessions = totalCompletedSessions,
-            thisWeekCompletedSessions = thisWeekCompletedSessions,
-            calendarMonth = calendarMonth,
-            records = records
+        val month = YearMonth.from(snapshotDate)
+        return StatisticsAggregator.buildStatisticsSnapshot(
+            sessions = sessions,
+            snapshotDate = snapshotDate,
+            month = month
         )
     }
 
-    private fun bindStatisticsToInputs(statistics: StudyStatistics) {
-        snapshotDateInput.setText(statistics.snapshotDate)
-        calendarMonthInput.setText(statistics.calendarMonth)
-        recordsInput.setText(StatisticsDebugParser.formatRecords(statistics.records))
-        val currentDayRecord = statistics.records.firstOrNull { it.date == statistics.snapshotDate }
-            ?: DailyStatisticsRecord(date = statistics.snapshotDate)
-        bindDayRecord(currentDayRecord)
+    private fun bindSessionRecord(record: StudySessionRecord) {
+        sessionDateInput.setText(
+            Instant.ofEpochMilli(record.endedAtEpochMillis)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
+                .toString()
+        )
+        sessionStudyMinutesInput.setText(record.studyMinutes.toString())
+        sessionInterruptionCountInput.setText(record.interruptionCount.toString())
+        sessionInterruptedMinutesInput.setText(record.interruptedMinutes.toString())
+        sessionCompletedSessionsInput.setText(record.completedSessions.toString())
+        sessionStatusSpinner.setSelection(StudySessionStatus.entries.indexOf(record.status))
+        sessionModeSpinner.setSelection(StudySessionMode.entries.indexOf(record.mode))
+        sessionNoteInput.setText(record.note)
     }
 
-    private fun bindDayRecord(record: DailyStatisticsRecord) {
-        dayDateInput.setText(record.date)
-        dayStudyMinutesInput.setText(record.studyMinutes.toString())
-        dayInterruptionCountInput.setText(record.interruptionCount.toString())
-        dayInterruptedMinutesInput.setText(record.interruptedMinutes.toString())
-        dayCompletedSessionsInput.setText(record.completedSessions.toString())
-        dayFocusScoreInput.setText(record.focusScore.toString())
+    private fun clearSessionInputs() {
+        sessionDateInput.setText(LocalDate.now().toString())
+        sessionStudyMinutesInput.setText("25")
+        sessionInterruptionCountInput.setText("0")
+        sessionInterruptedMinutesInput.setText("0")
+        sessionCompletedSessionsInput.setText("1")
+        sessionStatusSpinner.setSelection(StudySessionStatus.entries.indexOf(StudySessionStatus.COMPLETED))
+        sessionModeSpinner.setSelection(StudySessionMode.entries.indexOf(StudySessionMode.NORMAL))
+        sessionNoteInput.setText("")
     }
 
-    private fun clearDayInputs(keepDate: Boolean) {
-        if (!keepDate) {
-            dayDateInput.setText(LocalDate.now().toString())
-        }
-        dayStudyMinutesInput.setText("0")
-        dayInterruptionCountInput.setText("0")
-        dayInterruptedMinutesInput.setText("0")
-        dayCompletedSessionsInput.setText("0")
-        dayFocusScoreInput.setText("0")
-    }
+    private fun collectSessionRecordFromInputs(): StudySessionRecord? {
+        val sessionId = UUID.randomUUID().toString()
+        val sessionDate = parseDate(sessionDateInput, "sessionDate") ?: return null
+        val endedAtEpochMillis = sessionDate
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+        val studyMinutes = parseLong(sessionStudyMinutesInput, "sessionStudyMinutes") ?: return null
+        val interruptionCount = parseLong(sessionInterruptionCountInput, "sessionInterruptionCount") ?: return null
+        val interruptedMinutes = parseLong(sessionInterruptedMinutesInput, "sessionInterruptedMinutes") ?: return null
+        val completedSessions = parseLong(sessionCompletedSessionsInput, "sessionCompletedSessions") ?: return null
+        val status = sessionStatusSpinner.selectedItem as StudySessionStatus
+        val mode = sessionModeSpinner.selectedItem as StudySessionMode
+        val note = sessionNoteInput.text.toString()
 
-    private fun collectDayRecordFromInputs(): DailyStatisticsRecord? {
-        val date = parseDate(dayDateInput, "dayDate") ?: return null
-        val studyMinutes = parseLong(dayStudyMinutesInput, "dayStudyMinutes") ?: return null
-        val interruptionCount = parseLong(dayInterruptionCountInput, "dayInterruptionCount") ?: return null
-        val interruptedMinutes = parseLong(dayInterruptedMinutesInput, "dayInterruptedMinutes") ?: return null
-        val completedSessions = parseLong(dayCompletedSessionsInput, "dayCompletedSessions") ?: return null
-        val focusScore = parseLong(dayFocusScoreInput, "dayFocusScore") ?: return null
-
-        return DailyStatisticsRecord(
-            date = date.toString(),
+        return StudySessionRecord(
+            sessionId = sessionId,
+            endedAtEpochMillis = endedAtEpochMillis,
             studyMinutes = studyMinutes,
             interruptionCount = interruptionCount,
             interruptedMinutes = interruptedMinutes,
             completedSessions = completedSessions,
-            focusScore = focusScore
+            status = status,
+            mode = mode,
+            note = note
         )
     }
 
-    private fun currentRecords(): List<DailyStatisticsRecord> {
-        return StatisticsDebugParser.parseRecords(recordsInput.text.toString())
-            .sortedBy { it.date }
+    private fun parseCurrentSessions(): List<StudySessionRecord>? {
+        return try {
+            SessionDebugParser.parseSessions(sessionsInput.text.toString())
+                .sortedBy { it.endedAtEpochMillis }
+        } catch (error: IllegalArgumentException) {
+            Toast.makeText(this, error.message, Toast.LENGTH_LONG).show()
+            null
+        }
     }
 
-    private fun renderStatisticsPreview(statistics: StudyStatistics) {
+    private fun renderStatisticsPreview(
+        statistics: StudyStatistics,
+        sessions: List<StudySessionRecord>
+    ) {
+        val today = LocalDate.parse(statistics.snapshotDate)
         statisticsPreviewText.text = buildString {
             appendLine("snapshotDate: ${statistics.snapshotDate}")
             appendLine("focusScore: ${statistics.focusScore}")
@@ -391,37 +428,56 @@ class FirebaseDebugActivity : AppCompatActivity() {
             appendLine("thisWeekCompletedSessions: ${statistics.thisWeekCompletedSessions}")
             appendLine("calendarMonth: ${statistics.calendarMonth}")
             appendLine("calendarRecordCount: ${statistics.records.size}")
-            if (statistics.records.isEmpty()) {
-                appendLine("calendarRecords: []")
+            appendLine("sessionCount: ${sessions.size}")
+            if (sessions.isEmpty()) {
+                appendLine("sessions: []")
             } else {
-                appendLine("calendarRecords:")
-                statistics.records.forEach { record ->
+                appendLine("sessions:")
+                sessions.forEach { session ->
+                    val sessionDate = Instant.ofEpochMilli(session.endedAtEpochMillis)
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalDate()
+                    val marker = if (sessionDate == today) "*" else "-"
                     appendLine(
-                        "date=${record.date}, studyMinutes=${record.studyMinutes}, interruptionCount=${record.interruptionCount}, interruptedMinutes=${record.interruptedMinutes}, completedSessions=${record.completedSessions}, focusScore=${record.focusScore}"
+                        "$marker id=${session.sessionId}, endedAt=${session.endedAtEpochMillis}, studyMinutes=${session.studyMinutes}, interruptionCount=${session.interruptionCount}, interruptedMinutes=${session.interruptedMinutes}, completedSessions=${session.completedSessions}, status=${session.status}, mode=${session.mode}, note=${session.note}"
                     )
                 }
             }
         }.trim()
     }
 
-    private fun populateDefaultStatisticsFields() {
-        val today = LocalDate.now()
-        val defaultRecords = listOf(
-            DailyStatisticsRecord(date = today.toString(), studyMinutes = 60, interruptionCount = 0, interruptedMinutes = 0, completedSessions = 2, focusScore = 100)
-        )
-        val defaultStatistics = StudyStatistics(
-            snapshotDate = today.toString(),
-            focusScore = 100,
-            todayStudyMinutes = 60,
-            todayInterruptionCount = 0,
-            todayInterruptedMinutes = 0,
-            totalCompletedSessions = 2,
-            thisWeekCompletedSessions = 2,
-            calendarMonth = "${today.month.name.lowercase().replaceFirstChar { it.uppercase() }} ${today.year}",
-            records = defaultRecords
-        )
-        bindStatisticsToInputs(defaultStatistics)
-        renderStatisticsPreview(defaultStatistics)
+    private fun loadLocalSessionsIntoForm() {
+        snapshotDateInput.setText(LocalDate.now().toString())
+        val sessions = statisticsRepository.getRecordedSessions()
+        if (sessions.isEmpty()) {
+            clearSessionInputs()
+            sessionsInput.setText("")
+            refreshStatisticsFromInputs()
+            appendLog("Loaded 0 local sessions.")
+            setStatus("Local sessions loaded")
+            return
+        }
+
+        val sortedSessions = sessions.sortedBy { it.endedAtEpochMillis }
+        bindSessionRecord(sortedSessions.last())
+        sessionsInput.setText(SessionDebugParser.formatSessions(sortedSessions))
+        refreshStatisticsFromInputs()
+        appendLog("Loaded ${sortedSessions.size} local sessions.")
+        setStatus("Local sessions loaded")
+    }
+
+    private fun setupSessionSelectors() {
+        sessionStatusSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            StudySessionStatus.entries.toTypedArray()
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+
+        sessionModeSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            StudySessionMode.entries.toTypedArray()
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
     }
 
     private fun parseLong(input: EditText, fieldName: String): Long? {
@@ -441,12 +497,6 @@ class FirebaseDebugActivity : AppCompatActivity() {
             Toast.makeText(this, "$fieldName must use yyyy-MM-dd", Toast.LENGTH_SHORT).show()
             null
         }
-    }
-
-    private fun isSameWeek(date: LocalDate, reference: LocalDate): Boolean {
-        val weekFields = java.time.temporal.WeekFields.of(java.util.Locale.getDefault())
-        return date.year == reference.year &&
-            date.get(weekFields.weekOfWeekBasedYear()) == reference.get(weekFields.weekOfWeekBasedYear())
     }
 
     private fun setStatus(status: String) {
@@ -470,16 +520,27 @@ class FirebaseDebugActivity : AppCompatActivity() {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
-    companion object {
-        private const val LOCAL_STATISTICS_PREFS = "firebase_debug_statistics"
-        private const val KEY_LOCAL_SNAPSHOT_DATE = "local.snapshotDate"
-        private const val KEY_LOCAL_CALENDAR_MONTH = "local.calendarMonth"
-        private const val KEY_LOCAL_RECORDS = "local.records"
+    private fun formatEpochMillis(epochMillis: Long?): String {
+        if (epochMillis == null) {
+            return "Never"
+        }
+        return Instant.ofEpochMilli(epochMillis)
+            .atZone(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
     }
+
+    private fun renderAvatarPreview(avatarId: String?) {
+        val resolvedAvatarId = AvatarAssets.resolveAvatarId(
+            userId = uidText.text.toString().removePrefix("uid: ").trim(),
+            avatarId = avatarId
+        )
+        avatarPreviewImage.setImageResource(AvatarAssets.getAvatarResId(resolvedAvatarId))
+    }
+
 }
 
-object StatisticsDebugParser {
-    fun parseRecords(rawValue: String): List<DailyStatisticsRecord> {
+object SessionDebugParser {
+    fun parseSessions(rawValue: String): List<StudySessionRecord> {
         if (rawValue.isBlank()) {
             return emptyList()
         }
@@ -488,40 +549,52 @@ object StatisticsDebugParser {
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .mapIndexed { index, line ->
-                val parts = line.split(",").map { it.trim() }
-                if (parts.size != 6) {
+                val parts = line.split("|", limit = 9).map { it.trim() }
+                if (parts.size != 9) {
                     throw IllegalArgumentException(
-                        "Record line ${index + 1} must have 6 comma-separated values: date,studyMinutes,interruptionCount,interruptedMinutes,completedSessions,focusScore"
+                        "Session line ${index + 1} must have 9 pipe-separated values: sessionId|endedAtEpochMillis|studyMinutes|interruptionCount|interruptedMinutes|completedSessions|status|mode|note"
                     )
                 }
 
-                DailyStatisticsRecord(
-                    date = parts[0],
-                    studyMinutes = parts[1].toLongOrNull()
-                        ?: throw IllegalArgumentException("Record line ${index + 1} has invalid studyMinutes."),
-                    interruptionCount = parts[2].toLongOrNull()
-                        ?: throw IllegalArgumentException("Record line ${index + 1} has invalid interruptionCount."),
-                    interruptedMinutes = parts[3].toLongOrNull()
-                        ?: throw IllegalArgumentException("Record line ${index + 1} has invalid interruptedMinutes."),
-                    completedSessions = parts[4].toLongOrNull()
-                        ?: throw IllegalArgumentException("Record line ${index + 1} has invalid completedSessions."),
-                    focusScore = parts[5].toLongOrNull()
-                        ?: throw IllegalArgumentException("Record line ${index + 1} has invalid focusScore.")
+                StudySessionRecord(
+                    sessionId = parts[0].ifBlank { UUID.randomUUID().toString() },
+                    endedAtEpochMillis = parts[1].toLongOrNull()
+                        ?: throw IllegalArgumentException("Session line ${index + 1} has invalid endedAtEpochMillis."),
+                    studyMinutes = parts[2].toLongOrNull()
+                        ?: throw IllegalArgumentException("Session line ${index + 1} has invalid studyMinutes."),
+                    interruptionCount = parts[3].toLongOrNull()
+                        ?: throw IllegalArgumentException("Session line ${index + 1} has invalid interruptionCount."),
+                    interruptedMinutes = parts[4].toLongOrNull()
+                        ?: throw IllegalArgumentException("Session line ${index + 1} has invalid interruptedMinutes."),
+                    completedSessions = parts[5].toLongOrNull()
+                        ?: throw IllegalArgumentException("Session line ${index + 1} has invalid completedSessions."),
+                    status = runCatching { StudySessionStatus.valueOf(parts[6].uppercase()) }
+                        .getOrElse {
+                            throw IllegalArgumentException("Session line ${index + 1} has invalid status.")
+                        },
+                    mode = runCatching { StudySessionMode.valueOf(parts[7].uppercase()) }
+                        .getOrElse {
+                            throw IllegalArgumentException("Session line ${index + 1} has invalid mode.")
+                        },
+                    note = parts[8]
                 )
             }
             .toList()
     }
 
-    fun formatRecords(records: List<DailyStatisticsRecord>): String {
-        return records.joinToString(separator = "\n") { record ->
+    fun formatSessions(sessions: List<StudySessionRecord>): String {
+        return sessions.joinToString(separator = "\n") { session ->
             listOf(
-                record.date,
-                record.studyMinutes,
-                record.interruptionCount,
-                record.interruptedMinutes,
-                record.completedSessions,
-                record.focusScore
-            ).joinToString(separator = ",")
+                session.sessionId,
+                session.endedAtEpochMillis,
+                session.studyMinutes,
+                session.interruptionCount,
+                session.interruptedMinutes,
+                session.completedSessions,
+                session.status.name,
+                session.mode.name,
+                session.note.replace("\n", " ")
+            ).joinToString(separator = " | ")
         }
     }
 }

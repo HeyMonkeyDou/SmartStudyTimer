@@ -1,20 +1,52 @@
 package com.group10.smartstudytimer
 
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.Timestamp
 import java.time.LocalDate
+import java.util.Date
 
 data class UserProfile(
     val uid: String = "",
     val displayName: String = "",
     val totalFocusMinutes: Long = 0,
-    val avatarId: String = "avatar_blue"
+    val avatarId: String = "",
+    val bestFocusScore: Long = 0,
+    val bestFocusScoreCompletedAt: String = "",
+    val updatedAtEpochMillis: Long? = null
 )
 
 data class LeaderboardEntry(
     val uid: String = "",
     val displayName: String = "",
-    val totalFocusMinutes: Long = 0,
-    val avatarId: String = "avatar_blue"
+    val bestFocusScore: Long = 0,
+    val bestFocusScoreCompletedAt: String = "",
+    val avatarId: String = "",
+    val updatedAtEpochMillis: Long? = null
+)
+
+data class ProfileHeader(
+    val userId: String,
+    val displayName: String,
+    val avatarId: String,
+    val recentSyncTimeEpochMillis: Long?
+)
+
+data class BestStudyRecord(
+    val focusScore: Long,
+    val completedAt: String
+)
+
+data class RankedLeaderboardEntry(
+    val rank: Int,
+    val userId: String,
+    val displayName: String,
+    val avatarId: String,
+    val score: Long
+)
+
+data class DailyScoreHistoryEntry(
+    val date: String,
+    val score: Long
 )
 
 data class DailyStatisticsRecord(
@@ -44,7 +76,13 @@ internal fun DocumentSnapshot.toUserProfile(): UserProfile {
         uid = id,
         displayName = getString("displayName").orEmpty(),
         totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
-        avatarId = getString("avatarId") ?: "avatar_blue"
+        avatarId = AvatarAssets.resolveAvatarId(
+            userId = id,
+            avatarId = getString("avatarId")
+        ),
+        bestFocusScore = getLong("bestFocusScore") ?: 0,
+        bestFocusScoreCompletedAt = getString("bestFocusScoreCompletedAt").orEmpty(),
+        updatedAtEpochMillis = getTimestamp("updatedAt")?.toDate()?.time
     )
 }
 
@@ -52,63 +90,45 @@ internal fun DocumentSnapshot.toLeaderboardEntry(): LeaderboardEntry {
     return LeaderboardEntry(
         uid = id,
         displayName = getString("displayName").orEmpty(),
-        totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
-        avatarId = getString("avatarId") ?: "avatar_blue"
+        bestFocusScore = getLong("bestFocusScore") ?: 0,
+        bestFocusScoreCompletedAt = getString("bestFocusScoreCompletedAt").orEmpty(),
+        avatarId = AvatarAssets.resolveAvatarId(
+            userId = id,
+            avatarId = getString("avatarId")
+        ),
+        updatedAtEpochMillis = getTimestamp("updatedAt")?.toDate()?.time
     )
 }
 
-internal fun DocumentSnapshot.toStudyStatistics(): StudyStatistics {
-    val recordMaps = get("records") as? List<*>
-    val records = recordMaps
-        ?.mapNotNull { item -> (item as? Map<*, *>)?.toDailyStatisticsRecord() }
-        .orEmpty()
-
-    return StudyStatistics(
-        uid = id,
-        snapshotDate = getString("snapshotDate").orEmpty(),
-        focusScore = getLong("focusScore") ?: 0,
-        todayStudyMinutes = getLong("todayStudyMinutes") ?: 0,
-        todayInterruptionCount = getLong("todayInterruptionCount") ?: 0,
-        todayInterruptedMinutes = getLong("todayInterruptedMinutes") ?: 0,
-        totalCompletedSessions = getLong("totalCompletedSessions") ?: 0,
-        thisWeekCompletedSessions = getLong("thisWeekCompletedSessions") ?: 0,
-        calendarMonth = getString("calendarMonth").orEmpty(),
-        records = records
-    )
-}
-
-internal fun StudyStatistics.toFirestoreMap(): HashMap<String, Any> {
+internal fun StudySessionRecord.toFirestoreMap(): HashMap<String, Any> {
     return hashMapOf(
-        "snapshotDate" to snapshotDate,
-        "focusScore" to focusScore,
-        "todayStudyMinutes" to todayStudyMinutes,
-        "todayInterruptionCount" to todayInterruptionCount,
-        "todayInterruptedMinutes" to todayInterruptedMinutes,
-        "totalCompletedSessions" to totalCompletedSessions,
-        "thisWeekCompletedSessions" to thisWeekCompletedSessions,
-        "calendarMonth" to calendarMonth,
-        "records" to records.map { it.toFirestoreMap() }
-    )
-}
-
-internal fun DailyStatisticsRecord.toFirestoreMap(): HashMap<String, Any> {
-    return hashMapOf(
-        "date" to date,
+        "sessionId" to sessionId,
+        "endedAtEpochMillis" to endedAtEpochMillis,
+        "endedAtTimestamp" to Timestamp(Date(endedAtEpochMillis)),
         "studyMinutes" to studyMinutes,
         "interruptionCount" to interruptionCount,
         "interruptedMinutes" to interruptedMinutes,
         "completedSessions" to completedSessions,
-        "focusScore" to focusScore
+        "status" to status.name,
+        "mode" to mode.name,
+        "note" to note
     )
 }
 
-private fun Map<*, *>.toDailyStatisticsRecord(): DailyStatisticsRecord {
-    return DailyStatisticsRecord(
-        date = this["date"] as? String ?: "",
-        studyMinutes = (this["studyMinutes"] as? Number)?.toLong() ?: 0,
-        interruptionCount = (this["interruptionCount"] as? Number)?.toLong() ?: 0,
-        interruptedMinutes = (this["interruptedMinutes"] as? Number)?.toLong() ?: 0,
-        completedSessions = (this["completedSessions"] as? Number)?.toLong() ?: 0,
-        focusScore = (this["focusScore"] as? Number)?.toLong() ?: 0
+internal fun DocumentSnapshot.toStudySessionRecord(): StudySessionRecord {
+    return StudySessionRecord(
+        sessionId = getString("sessionId").orEmpty().ifBlank { id },
+        endedAtEpochMillis = getLong("endedAtEpochMillis") ?: 0,
+        studyMinutes = getLong("studyMinutes") ?: 0,
+        interruptionCount = getLong("interruptionCount") ?: 0,
+        interruptedMinutes = getLong("interruptedMinutes") ?: 0,
+        completedSessions = getLong("completedSessions") ?: 0,
+        status = runCatching {
+            StudySessionStatus.valueOf(getString("status") ?: StudySessionStatus.COMPLETED.name)
+        }.getOrDefault(StudySessionStatus.COMPLETED),
+        mode = runCatching {
+            StudySessionMode.valueOf(getString("mode") ?: StudySessionMode.NORMAL.name)
+        }.getOrDefault(StudySessionMode.NORMAL),
+        note = getString("note").orEmpty()
     )
 }
