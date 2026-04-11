@@ -2,6 +2,7 @@ package com.group10.smartstudytimer
 
 import android.Manifest
 import android.app.AlertDialog
+import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,6 +13,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -36,6 +38,7 @@ class Home : Fragment(), SensorEventListener {
     private lateinit var radioPomodoro: RadioButton
 
     private lateinit var layoutTimeInput: LinearLayout
+    private lateinit var layoutHoursInput: LinearLayout
     private lateinit var layoutPomodoroOptions: LinearLayout
 
     private lateinit var inputHours: EditText
@@ -124,6 +127,20 @@ class Home : Fragment(), SensorEventListener {
         setupVoiceControl()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Check if the background service detected an app switch while we were away.
+        if (DistractionDetectorService.distractionDetectedByService) {
+            DistractionDetectorService.distractionDetectedByService = false
+            handleServiceDetectedDistraction()
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        stopDistractionService()
+    }
+
     private fun bindViews(view: View) {
         homeContainer = view.findViewById(R.id.homeContainer)
         radioGroupMode = view.findViewById(R.id.radioGroupMode)
@@ -131,6 +148,7 @@ class Home : Fragment(), SensorEventListener {
         radioPomodoro = view.findViewById(R.id.radioPomodoro)
 
         layoutTimeInput = view.findViewById(R.id.layoutTimeInput)
+        layoutHoursInput = view.findViewById(R.id.layoutHoursInput)
         layoutPomodoroOptions = view.findViewById(R.id.layoutPomodoroOptions)
 
         inputHours = view.findViewById(R.id.inputHours)
@@ -152,15 +170,21 @@ class Home : Fragment(), SensorEventListener {
     private fun setupModeSelection() {
         radioGroupMode.setOnCheckedChangeListener { _, checkedId ->
             isPomodoroMode = checkedId == R.id.radioPomodoro
-            if (isPomodoroMode) {
-                layoutPomodoroOptions.visibility = View.VISIBLE
-                tvStatus.text = "Mode: Pomodoro"
-            } else {
-                layoutPomodoroOptions.visibility = View.GONE
-                tvStatus.text = "Mode: Normal"
-            }
+            tvStatus.text = if (isPomodoroMode) "Mode: Pomodoro" else "Mode: Normal"
             resetSessionState()
+            updateInputVisibility()
             updateUIState()
+        }
+    }
+
+    private fun updateInputVisibility() {
+        if (timerRunning) {
+            layoutTimeInput.visibility = View.GONE
+            layoutPomodoroOptions.visibility = View.GONE
+        } else {
+            layoutTimeInput.visibility = View.VISIBLE
+            layoutHoursInput.visibility = if (isPomodoroMode) View.GONE else View.VISIBLE
+            layoutPomodoroOptions.visibility = if (isPomodoroMode) View.VISIBLE else View.GONE
         }
     }
 
@@ -223,6 +247,9 @@ class Home : Fragment(), SensorEventListener {
             override fun onTick(millisUntilFinished: Long) {
                 timeLeftInMillis = millisUntilFinished
                 updateTimerText()
+                if (isPomodoroMode && !isBreakTime) {
+                    updateServiceNotification()
+                }
             }
 
             override fun onFinish() {
@@ -233,6 +260,7 @@ class Home : Fragment(), SensorEventListener {
                 if (isPomodoroMode) {
                     if (!isBreakTime) {
                         if (currentRound < totalRounds) {
+                            stopDistractionService()  // study round ended → pause monitoring during break
                             isBreakTime = true
                             initialTimeInMillis = breakDurationInMillis
                             timeLeftInMillis = initialTimeInMillis
@@ -241,6 +269,7 @@ class Home : Fragment(), SensorEventListener {
                             startTimer()
                             return
                         } else {
+                            stopDistractionService()  // all rounds done
                             recordCompletedSession()
                             tvStatus.text = "Pomodoro finished!"
                             Toast.makeText(requireContext(), "All Pomodoro rounds completed!", Toast.LENGTH_SHORT).show()
@@ -252,7 +281,7 @@ class Home : Fragment(), SensorEventListener {
                         timeLeftInMillis = initialTimeInMillis
                         tvStatus.text = "Study Round $currentRound / $totalRounds | Limit: $distractionLimit"
                         Toast.makeText(requireContext(), "Break finished. Next study round started.", Toast.LENGTH_SHORT).show()
-                        startTimer()
+                        startTimer()  // startDistractionService() is called inside startTimer for study rounds
                         return
                     }
                 } else {
@@ -261,6 +290,7 @@ class Home : Fragment(), SensorEventListener {
                     Toast.makeText(requireContext(), "Timer finished!", Toast.LENGTH_SHORT).show()
                 }
 
+                updateInputVisibility()
                 updateButtons()
                 updateUIState()
             }
@@ -268,11 +298,20 @@ class Home : Fragment(), SensorEventListener {
 
         timerRunning = true
 
+        // Hide inputs and dismiss keyboard so they don't reappear when returning from another app
+        updateInputVisibility()
+        requireView().clearFocus()
+        val imm = requireActivity().getSystemService(Context.INPUT_METHOD_SERVICE)
+                as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(requireView().windowToken, 0)
+
         if (isPomodoroMode && !isBreakTime) {
             accelerometer?.let { sensor ->
                 sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
             }
+            checkAndRequestPermissions()
         }
+        startDistractionService()
 
         updateButtons()
         updateUIState()
@@ -300,11 +339,11 @@ class Home : Fragment(), SensorEventListener {
     private fun pauseTimer() {
         countDownTimer?.cancel()
         timerRunning = false
+        sensorManager.unregisterListener(this)
+        stopDistractionService()
+        updateInputVisibility()
         updateButtons()
         updateUIState()
-
-        // Terminate sensors when paused
-        sensorManager.unregisterListener(this)
     }
 
     fun registerDistraction() {
@@ -349,12 +388,12 @@ class Home : Fragment(), SensorEventListener {
             tvStatus.text = "Mode: Normal"
         }
 
+        sensorManager.unregisterListener(this)
+        stopDistractionService()
         updateTimerText()
+        updateInputVisibility()
         updateButtons()
         updateUIState()
-
-        // Terminate sensors when reset
-        sensorManager.unregisterListener(this)
     }
 
     private fun resetSessionState() {
@@ -363,6 +402,8 @@ class Home : Fragment(), SensorEventListener {
         timeLeftInMillis = 0
         initialTimeInMillis = 0
         currentRound = 1
+        sensorManager.unregisterListener(this)
+        stopDistractionService()
         updateTimerText()
         updateButtons()
     }
@@ -444,6 +485,83 @@ class Home : Fragment(), SensorEventListener {
             .show()
     }
 
+    // ── App-switch detection via DistractionDetectorService ──────────────────
+
+    private fun handleServiceDetectedDistraction() {
+        if (!isPomodoroMode || sessionInvalidated) return
+        registerDistraction()
+        // Restart service polling for the next potential distraction
+        if (!sessionInvalidated) {
+            startDistractionService()
+        }
+    }
+
+    private fun startDistractionService() {
+        val intent = Intent(requireContext(), DistractionDetectorService::class.java).apply {
+            action = DistractionDetectorService.ACTION_START
+        }
+        requireContext().startForegroundService(intent)
+    }
+
+    private fun stopDistractionService() {
+        val intent = Intent(requireContext(), DistractionDetectorService::class.java).apply {
+            action = DistractionDetectorService.ACTION_STOP
+        }
+        requireContext().startService(intent)
+    }
+
+    private fun updateServiceNotification() {
+        val totalSeconds = timeLeftInMillis / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        val timeText = if (hours > 0) {
+            String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+        }
+        val label = "Round $currentRound / $totalRounds"
+        Intent(requireContext(), DistractionDetectorService::class.java).apply {
+            action = DistractionDetectorService.ACTION_UPDATE_TIME
+            putExtra(DistractionDetectorService.EXTRA_TIME_TEXT, timeText)
+            putExtra(DistractionDetectorService.EXTRA_LABEL, label)
+        }.also { requireContext().startService(it) }
+    }
+
+    private fun hasUsageStatsPermission(): Boolean {
+        val appOps = requireActivity().getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = appOps.checkOpNoThrow(
+            AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(),
+            requireActivity().packageName
+        )
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
+    private fun checkAndRequestPermissions() {
+        if (!hasUsageStatsPermission()) {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Permission Required")
+                .setMessage("To detect app switching during your study session, please grant Usage Access permission in Settings.")
+                .setPositiveButton("Go to Settings") { _, _ ->
+                    startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+        if (!Settings.canDrawOverlays(requireContext())) {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Overlay Permission")
+                .setMessage("For an immediate warning when you switch apps, grant 'Display over other apps' permission.")
+                .setPositiveButton("Go to Settings") { _, _ ->
+                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+                }
+                .setNegativeButton("Skip", null)
+                .show()
+        }
+    }
+
     // Relevant methods and variables for voice control
     private fun setupVoiceControl() {
         if (SpeechRecognizer.isRecognitionAvailable(requireContext())) {
@@ -517,12 +635,4 @@ class Home : Fragment(), SensorEventListener {
             speechRecognizer.destroy()
         }
     }
-    fun getInterruptedTimeInMillis(): Long {
-        return interruptedTimeInMillis
-    }
-
-    fun getDistractionCount(): Int {
-        return distractionCount
-    }
 }
-
