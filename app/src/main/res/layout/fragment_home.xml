@@ -13,111 +13,15 @@
         android:padding="36dp"
         app:title="Study Timer" />
 
-    <LinearLayout
+    <!-- Scrollable content area -->
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:orientation="vertical">
+        android:layout_weight="1">
 
-        <!-- Mode Selection -->
-        <RadioGroup
-            android:id="@+id/radioGroupMode"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="20dp">
-
-            <RadioButton
-                android:id="@+id/radioNormal"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Normal"
-                android:checked="true" />
-
-            <RadioButton
-                android:id="@+id/radioPomodoro"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Pomodoro"
-                android:layout_marginStart="20dp" />
-        </RadioGroup>
-
-        <!-- Timer Display -->
-        <TextView
-            android:id="@+id/tvTimer"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="00:00:00"
-            android:textSize="36sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="12dp" />
-
-        <!-- Status -->
-        <TextView
-            android:id="@+id/tvStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Mode: Normal"
-            android:textSize="16sp"
-            android:layout_marginBottom="24dp" />
-
-        <!-- Time Input (Hours + Minutes) -->
+        <!-- homeContainer: background color is changed by updateUIState() -->
         <LinearLayout
-            android:id="@+id/layoutTimeInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginBottom="20dp">
-
-            <!-- Hours input — hidden in Pomodoro mode -->
-            <LinearLayout
-                android:id="@+id/layoutHoursInput"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:layout_marginEnd="8dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Hours" />
-
-                <EditText
-                    android:id="@+id/inputHours"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number"
-                    android:hint="0" />
-            </LinearLayout>
-
-            <!-- Minutes input — always visible -->
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:layout_marginStart="8dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Minutes" />
-
-                <EditText
-                    android:id="@+id/inputMinutes"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number"
-                    android:hint="25" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Pomodoro Options (only shown in Pomodoro mode) -->
-        <LinearLayout
-            android:id="@+id/layoutPomodoroOptions"
+            android:id="@+id/homeContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -153,7 +57,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="00:00:00"
-                android:textSize="36sp"
+                android:textSize="64sp"
                 android:textStyle="bold"
                 android:layout_marginBottom="12dp" />
 
@@ -166,7 +70,7 @@
                 android:textSize="16sp"
                 android:layout_marginBottom="24dp" />
 
-            <!-- Normal Timer Input -->
+            <!-- Time Input (Hours + Minutes) -->
             <LinearLayout
                 android:id="@+id/layoutTimeInput"
                 android:layout_width="match_parent"
@@ -175,38 +79,37 @@
                 android:gravity="center"
                 android:layout_marginBottom="20dp">
 
-        <!-- Voice Command Button -->
-        <Button
-            android:id="@+id/btnVoiceCommand"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🎤 Tap to Speak"
-            android:layout_marginBottom="16dp" />
+                <!-- Hours input — hidden in Pomodoro mode -->
+                <LinearLayout
+                    android:id="@+id/layoutHoursInput"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginEnd="8dp">
 
-        <!-- Timer Control Buttons -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center">
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/inputHours"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:hint="Hours"
-                            android:inputType="number"/>
+                            android:inputType="number" />
 
                     </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
 
+                <!-- Minutes input — always visible -->
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:orientation="vertical"
                     android:layout_marginStart="8dp">
-
 
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -218,14 +121,13 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:hint="Minutes"
-                            android:inputType="number"/>
+                            android:inputType="number" />
 
                     </com.google.android.material.textfield.TextInputLayout>
-
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Pomodoro Options -->
+            <!-- Pomodoro Options (only visible in Pomodoro mode) -->
             <LinearLayout
                 android:id="@+id/layoutPomodoroOptions"
                 android:layout_width="match_parent"
@@ -260,7 +162,7 @@
                     android:hint="3" />
             </LinearLayout>
 
-            <!-- Buttons -->
+            <!-- Voice Command Button -->
             <Button
                 android:id="@+id/btnVoiceCommand"
                 style="@style/Widget.Material3.Button"
@@ -268,12 +170,12 @@
                 android:layout_height="52dp"
                 android:text="Tap to Speak"
                 android:layout_marginBottom="16dp"
-
                 app:icon="@drawable/ic_mic"
                 app:iconPadding="2dp"
                 app:iconGravity="textStart"
                 app:iconTint="@color/icon_tint" />
 
+            <!-- Timer Control Buttons -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -287,7 +189,6 @@
                     android:layout_height="52dp"
                     android:enabled="false"
                     android:layout_marginEnd="8dp"
-
                     app:icon="@drawable/ic_reset"
                     app:iconPadding="2dp"
                     app:iconGravity="textStart"
@@ -303,7 +204,6 @@
                     android:enabled="false"
                     android:layout_marginStart="8dp"
                     android:layout_marginEnd="8dp"
-
                     app:icon="@drawable/ic_pause"
                     app:iconPadding="2dp"
                     app:iconGravity="textStart"
@@ -317,7 +217,6 @@
                     android:layout_weight="1"
                     android:text="Start"
                     android:layout_marginStart="8dp"
-
                     app:icon="@drawable/ic_play"
                     app:iconPadding="2dp"
                     app:iconGravity="textStart"
@@ -325,7 +224,6 @@
             </LinearLayout>
 
         </LinearLayout>
-
-    </LinearLayout>
+    </ScrollView>
 
 </LinearLayout>

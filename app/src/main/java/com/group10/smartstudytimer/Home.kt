@@ -167,17 +167,21 @@ class Home : Fragment(), SensorEventListener {
     private fun setupModeSelection() {
         radioGroupMode.setOnCheckedChangeListener { _, checkedId ->
             isPomodoroMode = checkedId == R.id.radioPomodoro
-            if (isPomodoroMode) {
-                layoutPomodoroOptions.visibility = View.VISIBLE
-                layoutHoursInput.visibility = View.GONE
-                tvStatus.text = "Mode: Pomodoro"
-            } else {
-                layoutPomodoroOptions.visibility = View.GONE
-                layoutHoursInput.visibility = View.VISIBLE
-                tvStatus.text = "Mode: Normal"
-            }
+            tvStatus.text = if (isPomodoroMode) "Mode: Pomodoro" else "Mode: Normal"
             resetSessionState()
+            updateInputVisibility()
             updateUIState()
+        }
+    }
+
+    private fun updateInputVisibility() {
+        if (timerRunning) {
+            layoutTimeInput.visibility = View.GONE
+            layoutPomodoroOptions.visibility = View.GONE
+        } else {
+            layoutTimeInput.visibility = View.VISIBLE
+            layoutHoursInput.visibility = if (isPomodoroMode) View.GONE else View.VISIBLE
+            layoutPomodoroOptions.visibility = if (isPomodoroMode) View.VISIBLE else View.GONE
         }
     }
 
@@ -282,6 +286,7 @@ class Home : Fragment(), SensorEventListener {
                     Toast.makeText(requireContext(), "Timer finished!", Toast.LENGTH_SHORT).show()
                 }
 
+                updateInputVisibility()
                 updateButtons()
                 updateUIState()
             }
@@ -289,13 +294,20 @@ class Home : Fragment(), SensorEventListener {
 
         timerRunning = true
 
+        // Hide inputs and dismiss keyboard so they don't reappear when returning from another app
+        updateInputVisibility()
+        requireView().clearFocus()
+        val imm = requireActivity().getSystemService(Context.INPUT_METHOD_SERVICE)
+                as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(requireView().windowToken, 0)
+
         if (isPomodoroMode && !isBreakTime) {
             accelerometer?.let { sensor ->
                 sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
             }
             checkAndRequestPermissions()
-            startDistractionService()
         }
+        startDistractionService()
 
         updateButtons()
         updateUIState()
@@ -323,12 +335,11 @@ class Home : Fragment(), SensorEventListener {
     private fun pauseTimer() {
         countDownTimer?.cancel()
         timerRunning = false
-        updateButtons()
-        updateUIState()
-
-        // Terminate sensors and distraction service when paused
         sensorManager.unregisterListener(this)
         stopDistractionService()
+        updateInputVisibility()
+        updateButtons()
+        updateUIState()
     }
 
     fun registerDistraction() {
@@ -366,13 +377,12 @@ class Home : Fragment(), SensorEventListener {
             tvStatus.text = "Mode: Normal"
         }
 
-        updateTimerText()
-        updateButtons()
-        updateUIState()
-
-        // Terminate sensors and distraction service when reset
         sensorManager.unregisterListener(this)
         stopDistractionService()
+        updateTimerText()
+        updateInputVisibility()
+        updateButtons()
+        updateUIState()
     }
 
     private fun resetSessionState() {
@@ -476,7 +486,6 @@ class Home : Fragment(), SensorEventListener {
     }
 
     private fun startDistractionService() {
-        if (!hasUsageStatsPermission()) return
         val intent = Intent(requireContext(), DistractionDetectorService::class.java).apply {
             action = DistractionDetectorService.ACTION_START
         }

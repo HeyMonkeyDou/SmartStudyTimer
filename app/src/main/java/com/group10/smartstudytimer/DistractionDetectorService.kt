@@ -1,5 +1,6 @@
 package com.group10.smartstudytimer
 
+import android.app.AppOpsManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -88,7 +89,18 @@ class DistractionDetectorService : Service() {
 
     // ── Detection ────────────────────────────────────────────────────────────
 
+    private fun hasUsageStatsPermission(): Boolean {
+        val appOps = getSystemService(APP_OPS_SERVICE) as AppOpsManager
+        val mode = appOps.checkOpNoThrow(
+            AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(),
+            packageName
+        )
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
     private fun checkForegroundApp() {
+        if (!hasUsageStatsPermission()) return
         val usageStatsManager = getSystemService(USAGE_STATS_SERVICE) as UsageStatsManager
         val now = System.currentTimeMillis()
         val events = usageStatsManager.queryEvents(lastCheckedTime, now)
