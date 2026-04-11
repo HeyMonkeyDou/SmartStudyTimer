@@ -76,6 +76,9 @@ class Home : Fragment(), SensorEventListener {
     private lateinit var btnVoiceCommand: Button
     private lateinit var speechRecognizer: SpeechRecognizer
 
+    private var interruptedTimeInMillis: Long = 0
+    private val interruptionPenaltyPerEvent: Long = 5 * 1000L
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -164,6 +167,7 @@ class Home : Fragment(), SensorEventListener {
     private fun setupSession() {
         distractionCount = 0
         sessionInvalidated = false
+        interruptedTimeInMillis = 0
 
         // 1. Read the time input from the user
         val hoursText = inputHours.text.toString()
@@ -285,7 +289,7 @@ class Home : Fragment(), SensorEventListener {
             StudySessionRecord(
                 studyMinutes = studyMinutes,
                 interruptionCount = distractionCount.toLong(),
-                interruptedMinutes = 0,
+                interruptedMinutes = interruptedTimeInMillis / 60000L,
                 completedSessions = if (isPomodoroMode) totalRounds.toLong() else 1L,
                 status = StudySessionStatus.COMPLETED,
                 mode = if (isPomodoroMode) StudySessionMode.POMODORO else StudySessionMode.NORMAL
@@ -307,14 +311,20 @@ class Home : Fragment(), SensorEventListener {
         if (!isPomodoroMode || sessionInvalidated) return
 
         distractionCount++
+        interruptedTimeInMillis += interruptionPenaltyPerEvent
 
         if (distractionCount >= distractionLimit) {
             sessionInvalidated = true
             pauseTimer()
             tvStatus.text = "Session failed: distraction limit reached"
-            Toast.makeText(requireContext(), "Distraction limit reached. Session invalidated.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                requireContext(),
+                "Distraction limit reached. Session invalidated.",
+                Toast.LENGTH_SHORT
+            ).show()
         } else {
-            tvStatus.text = "Warning: $distractionCount / $distractionLimit distractions"
+            val interruptedSeconds = interruptedTimeInMillis / 1000
+            tvStatus.text = "Warning: $distractionCount / $distractionLimit distractions | Interrupted: ${interruptedSeconds}s"
         }
 
         updateUIState()
@@ -326,6 +336,7 @@ class Home : Fragment(), SensorEventListener {
 
         distractionCount = 0
         sessionInvalidated = false
+        interruptedTimeInMillis = 0
 
         if (isPomodoroMode) {
             currentRound = 1
@@ -506,4 +517,12 @@ class Home : Fragment(), SensorEventListener {
             speechRecognizer.destroy()
         }
     }
+    fun getInterruptedTimeInMillis(): Long {
+        return interruptedTimeInMillis
+    }
+
+    fun getDistractionCount(): Int {
+        return distractionCount
+    }
 }
+
