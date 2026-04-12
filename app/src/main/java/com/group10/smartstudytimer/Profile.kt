@@ -40,6 +40,21 @@ class Profile : Fragment() {
 
         emailText.text = user?.email.orEmpty().ifBlank { "No email available" }
         uidText.text = user?.uid.orEmpty().ifBlank { "No user ID available" }
+        firebaseRepository.saveCurrentUserProfile(
+            displayName = user?.displayName.orEmpty(),
+            totalFocusMinutes = 0,
+            avatarId = "",
+            onSuccess = {
+                // Optional: profile saved successfully
+            },
+            onError = {
+                Toast.makeText(
+                    requireContext(),
+                    "Failed to save profile: ${it.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        )
 
         btnSendFriendRequest.setOnClickListener {
             val targetEmail = inputFriendEmail.text.toString().trim()
