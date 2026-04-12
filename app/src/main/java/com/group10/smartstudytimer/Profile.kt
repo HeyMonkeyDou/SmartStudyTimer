@@ -1,6 +1,7 @@
 package com.group10.smartstudytimer
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.view.*
 import android.widget.Button
@@ -8,8 +9,11 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
 
 class Profile : Fragment() {
 
@@ -28,6 +32,25 @@ class Profile : Fragment() {
         val levelBadgeCard = view.findViewById<MaterialCardView>(R.id.cardLevelBadge)
         val levelBadgeText = view.findViewById<TextView>(R.id.tvLevelBadge)
         val signOutButton = view.findViewById<Button>(R.id.signOutButton)
+        val editProfileButton = view.findViewById<Button>(R.id.btnEditProfile)
+
+        var currentProfileHeader: ProfileHeader? = null
+
+        fun renderProfileHeader(profile: ProfileHeader) {
+            currentProfileHeader = profile
+
+            val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            avatarView.setImageResource(AvatarAssets.getAvatarResId(profile.avatarId))
+
+            view.findViewById<TextView>(R.id.tvUsername).text =
+                profile.displayName.ifBlank { "No name set" }
+
+            view.findViewById<TextView>(R.id.profileEmailText).text =
+                "Email: ${user?.email ?: "No email available"}"
+
+            view.findViewById<TextView>(R.id.profileUidText).text =
+                "UID: ${user?.uid ?: profile.userId}"
+        }
 
         signOutButton.setOnClickListener {
             authRepository.signOut(requireActivity()) {
@@ -38,21 +61,36 @@ class Profile : Fragment() {
             }
         }
 
+        editProfileButton.setOnClickListener {
+            val initialProfile = currentProfileHeader
+            showEditProfileDialog(
+                initialDisplayName = initialProfile?.displayName.orEmpty(),
+                initialAvatarId = initialProfile?.avatarId ?: AvatarAssets.CAT,
+                onSave = { displayName, avatarId ->
+                    firebaseRepository.updateCurrentUserProfileSettings(
+                        displayName = displayName,
+                        avatarId = avatarId,
+                        onSuccess = {
+                            Toast.makeText(requireContext(), "Profile updated", Toast.LENGTH_SHORT).show()
+                            repo.loadProfileHeader(
+                                onSuccess = { updatedProfile -> renderProfileHeader(updatedProfile) },
+                                onError = {
+                                    Toast.makeText(requireContext(), "Profile updated, but refresh failed", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        },
+                        onError = {
+                            Toast.makeText(requireContext(), "Failed to update profile", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            )
+        }
+
         // Profile Info
         repo.loadProfileHeader(
             onSuccess = { profile ->
-
-                val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-                avatarView.setImageResource(AvatarAssets.getAvatarResId(profile.avatarId))
-
-                view.findViewById<TextView>(R.id.tvUsername).text =
-                    profile.displayName ?: "No name set"
-
-                view.findViewById<TextView>(R.id.profileEmailText).text =
-                    "Email: ${user?.email ?: "No email available"}"
-
-                view.findViewById<TextView>(R.id.profileUidText).text =
-                    "UID: ${user?.uid ?: profile.userId}"
+                renderProfileHeader(profile)
             },
             onError = {
                 val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
@@ -129,5 +167,69 @@ class Profile : Fragment() {
         }
 
         return view
+    }
+
+    private fun showEditProfileDialog(
+        initialDisplayName: String,
+        initialAvatarId: String,
+        onSave: (String, String) -> Unit
+    ) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_edit_profile, null)
+        val displayNameInput = dialogView.findViewById<TextInputEditText>(R.id.etDisplayName)
+        val avatarCards = linkedMapOf(
+            AvatarAssets.CAT to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarCat),
+            AvatarAssets.CHICKEN to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarChicken),
+            AvatarAssets.PANDA to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarPanda),
+            AvatarAssets.RABBIT to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarRabbit)
+        )
+
+        displayNameInput.setText(initialDisplayName)
+
+        var selectedAvatarId = initialAvatarId.takeIf { it in AvatarAssets.avatarIds } ?: AvatarAssets.CAT
+
+        fun updateAvatarSelection() {
+            avatarCards.forEach { (avatarId, card) ->
+                val isSelected = avatarId == selectedAvatarId
+                card.strokeWidth = if (isSelected) dpToPx(3) else dpToPx(1)
+                card.setCardBackgroundColor(
+                    if (isSelected) Color.parseColor("#E8DEF8") else Color.WHITE
+                )
+            }
+        }
+
+        avatarCards.forEach { (avatarId, card) ->
+            card.setOnClickListener {
+                selectedAvatarId = avatarId
+                updateAvatarSelection()
+            }
+        }
+        updateAvatarSelection()
+
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Edit Profile")
+            .setView(dialogView)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Save", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val displayName = displayNameInput.text?.toString()?.trim().orEmpty()
+                if (displayName.isBlank()) {
+                    displayNameInput.error = "Username cannot be empty"
+                    return@setOnClickListener
+                }
+
+                onSave(displayName, selectedAvatarId)
+                dialog.dismiss()
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        val density = resources.displayMetrics.density
+        return (dp * density).toInt()
     }
 }

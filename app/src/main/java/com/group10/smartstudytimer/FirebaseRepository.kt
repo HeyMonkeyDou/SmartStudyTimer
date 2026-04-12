@@ -1,6 +1,7 @@
 package com.group10.smartstudytimer
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -81,9 +82,9 @@ class FirebaseRepository(
                         saveUserProfile(
                             profile = UserProfile(
                                 uid = uid,
-                                displayName = currentUser?.displayName
+                                displayName = existingProfile?.displayName
                                     ?.takeIf { it.isNotBlank() }
-                                    ?: existingProfile?.displayName.orEmpty(),
+                                    ?: currentUser?.displayName.orEmpty(),
                                 email = currentUser?.email.orEmpty(),
                                 username = existingProfile?.username.orEmpty(),
                                 totalFocusMinutes = existingProfile?.totalFocusMinutes ?: 0L,
@@ -92,6 +93,50 @@ class FirebaseRepository(
                                 bestFocusScoreCompletedAt = existingProfile?.bestFocusScoreCompletedAt.orEmpty()
                             ),
                             onSuccess = onSuccess,
+                            onError = onError
+                        )
+                    },
+                    onError = onError
+                )
+            },
+            onError = onError
+        )
+    }
+
+    fun updateCurrentUserProfileSettings(
+        displayName: String,
+        avatarId: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { uid ->
+                loadUserProfile(
+                    uid = uid,
+                    onSuccess = { existingProfile ->
+                        val resolvedDisplayName = displayName.trim()
+                            .ifBlank { existingProfile?.displayName.orEmpty().ifBlank { uid.take(6) } }
+                        val resolvedAvatarId = AvatarAssets.resolveAvatarId(uid, avatarId)
+
+                        saveUserProfile(
+                            profile = UserProfile(
+                                uid = uid,
+                                displayName = resolvedDisplayName,
+                                email = auth.currentUser?.email.orEmpty(),
+                                totalFocusMinutes = existingProfile?.totalFocusMinutes ?: 0L,
+                                avatarId = resolvedAvatarId,
+                                bestFocusScore = existingProfile?.bestFocusScore ?: 0L,
+                                bestFocusScoreCompletedAt = existingProfile?.bestFocusScoreCompletedAt.orEmpty()
+                            ),
+                            onSuccess = {
+                                auth.currentUser?.updateProfile(
+                                    UserProfileChangeRequest.Builder()
+                                        .setDisplayName(resolvedDisplayName)
+                                        .build()
+                                )?.addOnCompleteListener {
+                                    onSuccess()
+                                } ?: onSuccess()
+                            },
                             onError = onError
                         )
                     },
