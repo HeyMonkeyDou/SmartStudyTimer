@@ -207,6 +207,7 @@ class Profile : Fragment() {
         }
 
         val inflater = LayoutInflater.from(requireContext())
+        val currentUserId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
         entries.forEach { entry ->
             val itemView = inflater.inflate(R.layout.item_leaderboard_entry, container, false)
             itemView.findViewById<TextView>(R.id.tvLeaderboardRank).text = entry.rank.toString()
@@ -214,7 +215,8 @@ class Profile : Fragment() {
                 itemView.findViewById(R.id.ivLeaderboardAvatar),
                 entry.avatarId
             )
-            val label = entry.username.ifBlank { entry.displayName }.ifBlank { "User ${entry.rank}" }
+            val baseLabel = entry.username.ifBlank { entry.displayName }.ifBlank { "User ${entry.rank}" }
+            val label = if (entry.userId == currentUserId) "$baseLabel (You)" else baseLabel
             itemView.findViewById<TextView>(R.id.tvLeaderboardName).text = label
             itemView.findViewById<TextView>(R.id.tvLeaderboardScore).text = "Score ${entry.score}"
             itemView.findViewById<TextView>(R.id.tvLeaderboardMinutes).text =

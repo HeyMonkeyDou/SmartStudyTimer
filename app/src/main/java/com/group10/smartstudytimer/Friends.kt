@@ -174,7 +174,7 @@ class Friends : Fragment() {
                                 FriendProfile(
                                     uid = it.uid,
                                     displayName = it.displayName,
-                                    username = if (it.username.isNotBlank()) "${it.username} (You)" else "(You)",
+                                    username = it.username,
                                     email = it.email,
                                     avatarId = it.avatarId,
                                     bestFocusScore = it.bestFocusScore,
@@ -209,6 +209,7 @@ class Friends : Fragment() {
         }
 
         val inflater = LayoutInflater.from(requireContext())
+        val currentUserId = firebaseRepository.getCurrentUserUid()
         friends.sortedByDescending { it.bestFocusScore }
             .forEachIndexed { index, friend ->
                 val itemView = inflater.inflate(
@@ -216,7 +217,14 @@ class Friends : Fragment() {
                     containerFriendsComparison,
                     false
                 )
-                val displayName = friend.nickname.ifBlank { friend.username.ifBlank { friend.displayName } }
+                val baseDisplayName = friend.nickname.ifBlank {
+                    friend.username.ifBlank { friend.displayName }
+                }.ifBlank { "User ${index + 1}" }
+                val displayName = if (friend.uid == currentUserId) {
+                    "$baseDisplayName (You)"
+                } else {
+                    baseDisplayName
+                }
 
                 itemView.findViewById<TextView>(R.id.tvLeaderboardRank).text = (index + 1).toString()
                 AvatarAssets.bindAvatar(
