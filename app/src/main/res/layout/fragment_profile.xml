@@ -15,7 +15,7 @@
 
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:fillViewport="true">
 
         <LinearLayout
@@ -211,6 +211,40 @@
 
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Global Leaderboard -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="top"
+                android:orientation="vertical"
+                android:layout_marginTop="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Worldwide Leaderboard"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardBackgroundColor="#ffffff"
+                    app:strokeColor="@android:color/transparent">
+
+                    <TextView
+                        android:id="@+id/tvGlobalComparison"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="14sp"
+                        android:gravity="center_vertical|start"
+                        android:padding="16dp" />
+
+                </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout>
+
             <!-- Daily Score History -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -223,7 +257,8 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Daily Score History" />
+                    android:text="Daily Score History"
+                    android:textStyle="bold" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"

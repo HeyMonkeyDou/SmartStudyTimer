@@ -134,6 +134,30 @@ class Profile : Fragment() {
             )
         }
 
+        // Leaderboard
+        val tvGlobalComparison = view.findViewById<TextView>(R.id.tvGlobalComparison)
+
+        repo.loadLeaderboard(
+            onSuccess = { allUsers ->
+
+                val resultText = StringBuilder()
+
+                allUsers.forEachIndexed { index, user ->
+
+                    val label = user.displayName ?: "User ${index + 1}"
+
+                    resultText.append(
+                        "${index + 1}. $label — Score: ${user.score}\n"
+                    )
+                }
+
+                tvGlobalComparison.text = resultText.toString()
+            },
+            onError = {
+                tvGlobalComparison.text = "Failed to load leaderboard"
+            }
+        )
+
         // History list
         val container = view.findViewById<LinearLayout>(R.id.historyContainer)
         container.removeAllViews()
