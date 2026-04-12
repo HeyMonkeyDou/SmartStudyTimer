@@ -155,18 +155,18 @@ class FriendListFragment : Fragment() {
     private fun showRemoveFriendDialog(friend: FriendProfile, displayName: String) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Delete Friend")
-            .setMessage("Are you sure to delete $displayName ?")
+            .setMessage("Are you sure to delete $displayName?")
             .setPositiveButton("Delete") { _, _ ->
                 firebaseRepository.removeFriendByUid(
                     friendUid = friend.uid,
                     onSuccess = {
                         if (!isAdded) return@removeFriendByUid
-                        Toast.makeText(requireContext(), "Deleted $displayName .", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), "Deleted $displayName.", Toast.LENGTH_SHORT).show()
                         loadFriends()
                     },
                     onError = {
                         if (!isAdded) return@removeFriendByUid
-                        Toast.makeText(requireContext(), "Fail to delete $displayName .", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), "Fail to delete $displayName.", Toast.LENGTH_SHORT).show()
                     }
                 )
             }

@@ -619,7 +619,7 @@ class FirebaseRepository(
                 val currentEmail = currentUser?.email ?: ""
 
                 firestore.collection(USERS_COLLECTION)
-                    .whereEqualTo("username", targetUsername)
+                    .whereEqualTo("displayName", targetUsername)
                     .limit(1)
                     .get()
                     .addOnSuccessListener { result ->
@@ -661,7 +661,7 @@ class FirebaseRepository(
         ensureSignedInUser(
             onSuccess = { currentUid ->
                 firestore.collection(USERS_COLLECTION)
-                    .whereEqualTo("username", targetUsername)
+                    .whereEqualTo("displayName", targetUsername)
                     .limit(1)
                     .get()
                     .addOnSuccessListener { result ->
