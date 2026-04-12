@@ -68,6 +68,39 @@ class FirebaseRepository(
         )
     }
 
+    fun syncCurrentUserProfile(
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { uid ->
+                loadUserProfile(
+                    uid = uid,
+                    onSuccess = { existingProfile ->
+                        val currentUser = auth.currentUser
+                        saveUserProfile(
+                            profile = UserProfile(
+                                uid = uid,
+                                displayName = currentUser?.displayName
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: existingProfile?.displayName.orEmpty(),
+                                email = currentUser?.email.orEmpty(),
+                                totalFocusMinutes = existingProfile?.totalFocusMinutes ?: 0L,
+                                avatarId = existingProfile?.avatarId.orEmpty(),
+                                bestFocusScore = existingProfile?.bestFocusScore ?: 0L,
+                                bestFocusScoreCompletedAt = existingProfile?.bestFocusScoreCompletedAt.orEmpty()
+                            ),
+                            onSuccess = onSuccess,
+                            onError = onError
+                        )
+                    },
+                    onError = onError
+                )
+            },
+            onError = onError
+        )
+    }
+
     fun saveUserProfile(
         profile: UserProfile,
         onSuccess: () -> Unit,
