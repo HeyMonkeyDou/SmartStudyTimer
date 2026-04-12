@@ -11,6 +11,7 @@ import com.google.android.material.button.MaterialButton
 class AuthActivity : AppCompatActivity() {
 
     private val authRepository by lazy { AuthRepository(this) }
+    private val firebaseRepository by lazy { FirebaseRepository() }
 
     private lateinit var statusText: TextView
     private lateinit var signInButton: MaterialButton
@@ -27,7 +28,7 @@ class AuthActivity : AppCompatActivity() {
         statusText.text = getString(R.string.signing_in)
         authRepository.authenticateWithGoogleResult(
             data = result.data,
-            onSuccess = { openMainScreen() },
+            onSuccess = { syncProfileAndOpenMainScreen() },
             onError = { error ->
                 setIdleState()
                 Toast.makeText(
@@ -52,7 +53,7 @@ class AuthActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         if (authRepository.isSignedIn()) {
-            openMainScreen()
+            syncProfileAndOpenMainScreen()
         } else {
             setIdleState()
         }
@@ -77,6 +78,22 @@ class AuthActivity : AppCompatActivity() {
     private fun openMainScreen() {
         startActivity(Intent(this, MainActivity::class.java))
         finish()
+    }
+
+    private fun syncProfileAndOpenMainScreen() {
+        signInButton.isEnabled = false
+        statusText.text = getString(R.string.signing_in)
+        firebaseRepository.syncCurrentUserProfile(
+            onSuccess = { openMainScreen() },
+            onError = { error ->
+                setIdleState()
+                Toast.makeText(
+                    this,
+                    error.message ?: getString(R.string.google_sign_in_failed),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        )
     }
 
     private fun setIdleState() {
