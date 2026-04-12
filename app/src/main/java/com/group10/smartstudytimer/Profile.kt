@@ -154,12 +154,14 @@ class Profile : Fragment() {
             )
 
             val tvDate = row.findViewById<TextView>(R.id.tvHistoryDate)
+            val tvDetails = row.findViewById<TextView>(R.id.tvHistoryDetails)
             val tvScore = row.findViewById<TextView>(R.id.tvHistoryScoreText)
             val progress = row.findViewById<com.google.android.material.progressindicator.CircularProgressIndicator>(
                 R.id.progressHistoryScore
             )
 
             tvDate.text = item.date.toString()
+            tvDetails.text = buildHistoryDetails(item)
             tvScore.text = item.score.toString()
             progress.progress = item.score.toInt()
 
@@ -167,6 +169,32 @@ class Profile : Fragment() {
         }
 
         return view
+    }
+
+    private fun buildHistoryDetails(item: DailyScoreHistoryEntry): String {
+        return "Study ${formatStudyMinutes(item.studyMinutes)}   " +
+            "Breaks ${item.interruptionCount}   " +
+            "Interrupted ${formatInterruptedSeconds(item.interruptedSeconds)}"
+    }
+
+    private fun formatStudyMinutes(minutes: Long): String {
+        val hours = minutes / 60
+        val remainingMinutes = minutes % 60
+        return when {
+            hours > 0 && remainingMinutes > 0 -> "${hours}h ${remainingMinutes}m"
+            hours > 0 -> "${hours}h"
+            else -> "${remainingMinutes}m"
+        }
+    }
+
+    private fun formatInterruptedSeconds(seconds: Long): String {
+        val totalMinutes = seconds / 60
+        val remainingSeconds = seconds % 60
+        return when {
+            totalMinutes > 0 && remainingSeconds > 0 -> "${totalMinutes}m ${remainingSeconds}s"
+            totalMinutes > 0 -> "${totalMinutes}m"
+            else -> "${remainingSeconds}s"
+        }
     }
 
     private fun showEditProfileDialog(

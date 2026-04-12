@@ -126,9 +126,13 @@ class ProfileRepository(
             .map { dailyRecord ->
                 DailyScoreHistoryEntry(
                     date = dailyRecord.date,
-                    score = dailyRecord.focusScore
+                    score = dailyRecord.focusScore,
+                    studyMinutes = dailyRecord.studyMinutes,
+                    interruptionCount = dailyRecord.interruptionCount,
+                    interruptedSeconds = dailyRecord.interruptedSeconds
                 )
             }
             .filter { it.score > 0 }
+            .sortedByDescending { it.date }
     }
 }
