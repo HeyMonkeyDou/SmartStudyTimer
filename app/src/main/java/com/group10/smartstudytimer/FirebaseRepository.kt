@@ -87,6 +87,7 @@ class FirebaseRepository(
                                     ?.takeIf { it.isNotBlank() }
                                     ?: existingProfile?.displayName.orEmpty(),
                                 email = currentUser?.email.orEmpty(),
+                                username = existingProfile?.username.orEmpty(),
                                 totalFocusMinutes = existingProfile?.totalFocusMinutes ?: 0L,
                                 avatarId = existingProfile?.avatarId.orEmpty(),
                                 bestFocusScore = existingProfile?.bestFocusScore ?: 0L,
@@ -472,6 +473,29 @@ class FirebaseRepository(
         batch.commit()
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener { onError(it) }
+    }
+
+    fun updateUsername(
+        username: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { uid ->
+                firestore.collection(USERS_COLLECTION)
+                    .document(uid)
+                    .update(
+                        mapOf(
+                            "username" to username,
+                            "displayName" to username,
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
     }
 
     // Check if a username is still available (not taken by any existing user).

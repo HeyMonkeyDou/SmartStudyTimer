@@ -82,6 +82,12 @@ class AuthRepository(
             .addOnFailureListener { onError(it) }
     }
 
+    fun deleteCurrentUser(onComplete: () -> Unit) {
+        auth.currentUser?.delete()
+            ?.addOnCompleteListener { onComplete() }
+            ?: onComplete()
+    }
+
     fun signOut(activity: Activity? = null, onComplete: (() -> Unit)? = null) {
         auth.signOut()
         val client = buildGoogleSignInClient()

@@ -50,21 +50,24 @@ class RegisterActivity : AppCompatActivity() {
 
         setLoadingState(true)
 
-        // Step 1: check username uniqueness
-        firebaseRepository.isUsernameAvailable(
-            username = username,
-            onResult = { available ->
-                if (!available) {
-                    showError(getString(R.string.username_taken))
-                    setLoadingState(false)
-                    return@isUsernameAvailable
-                }
-                // Step 2: create Firebase Auth user
-                authRepository.createUserWithEmailAndPassword(
-                    email = email,
-                    password = password,
-                    onSuccess = {
-                        // Step 3: save profile to Firestore with chosen username
+        // Step 1: create Firebase Auth user first (so we're authenticated for Firestore queries)
+        authRepository.createUserWithEmailAndPassword(
+            email = email,
+            password = password,
+            onSuccess = {
+                // Step 2: now authenticated — check username uniqueness
+                firebaseRepository.isUsernameAvailable(
+                    username = username,
+                    onResult = { available ->
+                        if (!available) {
+                            // Username taken — delete the Auth user we just created and bail
+                            authRepository.deleteCurrentUser {
+                                showError(getString(R.string.username_taken))
+                                setLoadingState(false)
+                            }
+                            return@isUsernameAvailable
+                        }
+                        // Step 3: username is free — save profile to Firestore
                         firebaseRepository.saveCurrentUserProfile(
                             displayName = username,
                             totalFocusMinutes = 0,
@@ -78,8 +81,11 @@ class RegisterActivity : AppCompatActivity() {
                         )
                     },
                     onError = { error ->
-                        showError(error.message ?: getString(R.string.register_failed))
-                        setLoadingState(false)
+                        // Firestore query failed — delete the Auth user and bail
+                        authRepository.deleteCurrentUser {
+                            showError(error.message ?: getString(R.string.register_failed))
+                            setLoadingState(false)
+                        }
                     }
                 )
             },
