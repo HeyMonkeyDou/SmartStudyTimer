@@ -85,6 +85,7 @@ class FirebaseRepository(
                                     ?.takeIf { it.isNotBlank() }
                                     ?: existingProfile?.displayName.orEmpty(),
                                 email = currentUser?.email.orEmpty(),
+                                username = existingProfile?.username.orEmpty(),
                                 totalFocusMinutes = existingProfile?.totalFocusMinutes ?: 0L,
                                 avatarId = existingProfile?.avatarId.orEmpty(),
                                 bestFocusScore = existingProfile?.bestFocusScore ?: 0L,
@@ -111,6 +112,7 @@ class FirebaseRepository(
         val payload = hashMapOf(
             "displayName" to resolvedDisplayName,
             "email" to profile.email,
+            "username" to profile.username,
             "totalFocusMinutes" to profile.totalFocusMinutes,
             "avatarId" to resolvedAvatarId,
             "bestFocusScore" to profile.bestFocusScore,
@@ -501,6 +503,7 @@ class FirebaseRepository(
                                         uid = doc.id,
                                         displayName = doc.getString("displayName").orEmpty(),
                                         email = doc.getString("email").orEmpty(),
+                                        username = doc.getString("username").orEmpty(),
                                         avatarId = AvatarAssets.resolveAvatarId(doc.id, doc.getString("avatarId")),
                                         bestFocusScore = doc.getLong("bestFocusScore") ?: 0L,
                                         totalFocusMinutes = doc.getLong("totalFocusMinutes") ?: 0L
@@ -508,6 +511,120 @@ class FirebaseRepository(
                                 }
                                 onSuccess(friends)
                             }
+                            .addOnFailureListener { onError(it) }
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun updateUsername(
+        username: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { uid ->
+                firestore.collection(USERS_COLLECTION)
+                    .document(uid)
+                    .update(mapOf(
+                        "username" to username,
+                        "displayName" to username,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ))
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun isUsernameAvailable(
+        username: String,
+        onResult: (Boolean) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        firestore.collection(USERS_COLLECTION)
+            .whereEqualTo("username", username)
+            .limit(1)
+            .get()
+            .addOnSuccessListener { result -> onResult(result.isEmpty) }
+            .addOnFailureListener { onError(it) }
+    }
+
+    fun sendFriendRequestByUsername(
+        targetUsername: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val currentUser = auth.currentUser
+                val currentDisplayName = currentUser?.displayName ?: currentUid.take(6)
+                val currentEmail = currentUser?.email ?: ""
+
+                firestore.collection(USERS_COLLECTION)
+                    .whereEqualTo("username", targetUsername)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        if (result.isEmpty) {
+                            onError(Exception("User \"$targetUsername\" not found"))
+                            return@addOnSuccessListener
+                        }
+                        val targetDoc = result.documents.first()
+                        val targetUid = targetDoc.id
+                        if (targetUid == currentUid) {
+                            onError(Exception("You cannot add yourself"))
+                            return@addOnSuccessListener
+                        }
+                        val requestRef = firestore.collection(FRIEND_REQUESTS_COLLECTION).document()
+                        requestRef.set(hashMapOf(
+                            "requestId" to requestRef.id,
+                            "fromUid" to currentUid,
+                            "fromDisplayName" to currentDisplayName,
+                            "fromEmail" to currentEmail,
+                            "toUid" to targetUid,
+                            "toEmail" to targetDoc.getString("email").orEmpty(),
+                            "status" to "pending",
+                            "createdAtEpochMillis" to System.currentTimeMillis()
+                        ))
+                        .addOnSuccessListener { onSuccess() }
+                        .addOnFailureListener { onError(it) }
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun removeFriendByUsername(
+        targetUsername: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                firestore.collection(USERS_COLLECTION)
+                    .whereEqualTo("username", targetUsername)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        if (result.isEmpty) {
+                            onError(Exception("User \"$targetUsername\" not found"))
+                            return@addOnSuccessListener
+                        }
+                        val targetUid = result.documents.first().id
+                        if (targetUid == currentUid) {
+                            onError(Exception("You cannot remove yourself"))
+                            return@addOnSuccessListener
+                        }
+                        val batch = firestore.batch()
+                        batch.delete(firestore.collection(USERS_COLLECTION).document(currentUid).collection(FRIENDS_SUBCOLLECTION).document(targetUid))
+                        batch.delete(firestore.collection(USERS_COLLECTION).document(targetUid).collection(FRIENDS_SUBCOLLECTION).document(currentUid))
+                        batch.commit()
+                            .addOnSuccessListener { onSuccess() }
                             .addOnFailureListener { onError(it) }
                     }
                     .addOnFailureListener { onError(it) }

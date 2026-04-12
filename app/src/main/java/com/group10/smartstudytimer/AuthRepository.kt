@@ -60,6 +60,34 @@ class AuthRepository(
             .addOnFailureListener { error -> onError(error) }
     }
 
+    fun createUserWithEmailAndPassword(
+        email: String,
+        password: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        auth.createUserWithEmailAndPassword(email, password)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it) }
+    }
+
+    fun signInWithEmailAndPassword(
+        email: String,
+        password: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it) }
+    }
+
+    fun deleteCurrentUser(onComplete: () -> Unit) {
+        auth.currentUser?.delete()
+            ?.addOnCompleteListener { onComplete() }
+            ?: onComplete()
+    }
+
     fun signOut(activity: Activity? = null, onComplete: (() -> Unit)? = null) {
         auth.signOut()
         val client = buildGoogleSignInClient()

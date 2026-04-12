@@ -9,6 +9,7 @@ data class UserProfile(
     val uid: String = "",
     val displayName: String = "",
     val email: String = "",
+    val username: String = "",
     val totalFocusMinutes: Long = 0,
     val avatarId: String = "",
     val bestFocusScore: Long = 0,
@@ -77,6 +78,7 @@ internal fun DocumentSnapshot.toUserProfile(): UserProfile {
         uid = id,
         displayName = getString("displayName").orEmpty(),
         email = getString("email").orEmpty(),
+        username = getString("username").orEmpty(),
         totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
         avatarId = AvatarAssets.resolveAvatarId(
             userId = id,
@@ -151,6 +153,7 @@ data class FriendProfile(
     val uid: String = "",
     val displayName: String = "",
     val email: String = "",
+    val username: String = "",
     val avatarId: String = "",
     val bestFocusScore: Long = 0,
     val totalFocusMinutes: Long = 0
