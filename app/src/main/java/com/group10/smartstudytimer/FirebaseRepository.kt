@@ -532,7 +532,8 @@ class FirebaseRepository(
                     .addOnSuccessListener { result ->
                         val basicFriends = result.documents.mapNotNull { doc ->
                             val uid = doc.getString("uid").orEmpty()
-                            if (uid.isBlank()) null else uid
+                            val nickname = doc.getString("nickname").orEmpty()
+                            if (uid.isBlank()) null else Pair(uid, nickname)
                         }
 
                         if (basicFriends.isEmpty()) {
@@ -540,8 +541,11 @@ class FirebaseRepository(
                             return@addOnSuccessListener
                         }
 
+                        val nicknameMap = basicFriends.toMap()
+                        val uidList = basicFriends.map { it.first }
+
                         firestore.collection(USERS_COLLECTION)
-                            .whereIn(com.google.firebase.firestore.FieldPath.documentId(), basicFriends)
+                            .whereIn(com.google.firebase.firestore.FieldPath.documentId(), uidList)
                             .get()
                             .addOnSuccessListener { userDocs ->
                                 val friends = userDocs.documents.map { doc ->
@@ -552,7 +556,8 @@ class FirebaseRepository(
                                         username = doc.getString("username").orEmpty(),
                                         avatarId = AvatarAssets.resolveAvatarId(doc.id, doc.getString("avatarId")),
                                         bestFocusScore = doc.getLong("bestFocusScore") ?: 0L,
-                                        totalFocusMinutes = doc.getLong("totalFocusMinutes") ?: 0L
+                                        totalFocusMinutes = doc.getLong("totalFocusMinutes") ?: 0L,
+                                        nickname = nicknameMap[doc.id].orEmpty()
                                     )
                                 }
                                 onSuccess(friends)
@@ -734,12 +739,128 @@ class FirebaseRepository(
     }
 
 
+    fun declineFriendRequest(
+        requestId: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        firestore.collection(FRIEND_REQUESTS_COLLECTION)
+            .document(requestId)
+            .delete()
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it) }
+    }
+
+    fun removeFriendByUid(
+        friendUid: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val batch = firestore.batch()
+                batch.delete(
+                    firestore.collection(USERS_COLLECTION).document(currentUid)
+                        .collection(FRIENDS_SUBCOLLECTION).document(friendUid)
+                )
+                batch.delete(
+                    firestore.collection(USERS_COLLECTION).document(friendUid)
+                        .collection(FRIENDS_SUBCOLLECTION).document(currentUid)
+                )
+                batch.commit()
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun updateFriendNickname(
+        friendUid: String,
+        nickname: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                firestore.collection(USERS_COLLECTION)
+                    .document(currentUid)
+                    .collection(FRIENDS_SUBCOLLECTION)
+                    .document(friendUid)
+                    .set(mapOf("nickname" to nickname), com.google.firebase.firestore.SetOptions.merge())
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun sendChatMessage(
+        friendUid: String,
+        text: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
+                val msgRef = firestore.collection(CHATS_COLLECTION)
+                    .document(chatId)
+                    .collection(MESSAGES_SUBCOLLECTION)
+                    .document()
+                val payload = hashMapOf(
+                    "messageId" to msgRef.id,
+                    "senderId" to currentUid,
+                    "text" to text,
+                    "timestamp" to System.currentTimeMillis()
+                )
+                msgRef.set(payload)
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun listenToChatMessages(
+        friendUid: String,
+        onUpdate: (List<ChatMessage>) -> Unit,
+        onError: (Exception) -> Unit
+    ): com.google.firebase.firestore.ListenerRegistration {
+        val currentUid = auth.currentUser?.uid ?: run {
+            onError(Exception("Not signed in"))
+            return firestore.collection("_dummy").addSnapshotListener { _, _ -> }
+        }
+        val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
+        return firestore.collection(CHATS_COLLECTION)
+            .document(chatId)
+            .collection(MESSAGES_SUBCOLLECTION)
+            .orderBy("timestamp", Query.Direction.ASCENDING)
+            .limit(100)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) { onError(error); return@addSnapshotListener }
+                val messages = snapshot?.documents?.map { doc ->
+                    ChatMessage(
+                        messageId = doc.getString("messageId").orEmpty(),
+                        senderId = doc.getString("senderId").orEmpty(),
+                        text = doc.getString("text").orEmpty(),
+                        timestamp = doc.getLong("timestamp") ?: 0L
+                    )
+                } ?: emptyList()
+                onUpdate(messages)
+            }
+    }
+
+    fun getCurrentUserUid(): String? = auth.currentUser?.uid
+
     companion object {
         private const val USERS_COLLECTION = "users"
         private const val SESSIONS_COLLECTION = "study_sessions"
         private const val SESSION_ITEMS_SUBCOLLECTION = "items"
         private const val FRIEND_REQUESTS_COLLECTION = "friend_requests"
         private const val FRIENDS_SUBCOLLECTION = "friends"
+        private const val CHATS_COLLECTION = "chats"
+        private const val MESSAGES_SUBCOLLECTION = "messages"
     }
 
     private fun sessionDocuments(uid: String) =

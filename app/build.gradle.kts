@@ -60,4 +60,5 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation("com.google.android.material:material:1.13.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 }

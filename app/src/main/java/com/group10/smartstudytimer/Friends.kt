@@ -8,13 +8,23 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.google.android.material.card.MaterialCardView
 
 class Friends : Fragment() {
 
     private val firebaseRepository by lazy { FirebaseRepository() }
+
+    private lateinit var swipeRefresh: SwipeRefreshLayout
+    private lateinit var containerIncomingRequests: LinearLayout
+    private lateinit var tvNoRequests: TextView
+    private lateinit var tvRequestBadge: TextView
+    private lateinit var tvFriendsComparison: TextView
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -29,11 +39,12 @@ class Friends : Fragment() {
 
         val inputFriendUsername = view.findViewById<EditText>(R.id.inputFriendUsername)
         val btnSendFriendRequest = view.findViewById<Button>(R.id.btnSendFriendRequest)
-        val btnRefreshProfile = view.findViewById<Button>(R.id.btnRefreshProfile)
-        val tvIncomingRequests = view.findViewById<TextView>(R.id.tvIncomingRequests)
-        val tvFriendsComparison = view.findViewById<TextView>(R.id.tvFriendsComparison)
-        val inputRemoveFriendUsername = view.findViewById<EditText>(R.id.inputRemoveFriendUsername)
-        val btnRemoveFriend = view.findViewById<Button>(R.id.btnRemoveFriend)
+        val cardViewFriendList = view.findViewById<MaterialCardView>(R.id.cardViewFriendList)
+        swipeRefresh = view.findViewById(R.id.swipeRefreshFriends)
+        containerIncomingRequests = view.findViewById(R.id.containerIncomingRequests)
+        tvNoRequests = view.findViewById(R.id.tvNoRequests)
+        tvRequestBadge = view.findViewById(R.id.tvRequestBadge)
+        tvFriendsComparison = view.findViewById(R.id.tvFriendsComparison)
 
         // ── Add friend ───────────────────────────────────────────────────────
 
@@ -50,7 +61,7 @@ class Friends : Fragment() {
                     Toast.makeText(requireContext(), "Friend request sent.", Toast.LENGTH_SHORT).show()
                     inputFriendUsername.setText("")
                     hideKeyboard()
-                    loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
+                    refresh()
                 },
                 onError = {
                     if (!isAdded) return@sendFriendRequestByUsername
@@ -59,86 +70,103 @@ class Friends : Fragment() {
             )
         }
 
-        // ── Remove friend ─────────────────────────────────────────────────────
+        // ── My Friends entry ──────────────────────────────────────────────────
 
-        btnRemoveFriend.setOnClickListener {
-            val targetUsername = inputRemoveFriendUsername.text.toString().trim()
-            if (targetUsername.isEmpty()) {
-                Toast.makeText(requireContext(), "Please enter a username.", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            firebaseRepository.removeFriendByUsername(
-                targetUsername = targetUsername,
-                onSuccess = {
-                    if (!isAdded) return@removeFriendByUsername
-                    Toast.makeText(requireContext(), "Friend removed.", Toast.LENGTH_SHORT).show()
-                    inputRemoveFriendUsername.setText("")
-                    hideKeyboard()
-                    loadFriendsComparison(tvFriendsComparison)
-                },
-                onError = {
-                    if (!isAdded) return@removeFriendByUsername
-                    Toast.makeText(requireContext(), it.message ?: "Failed to remove friend.", Toast.LENGTH_SHORT).show()
-                }
-            )
+        cardViewFriendList.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, FriendListFragment())
+                .addToBackStack("friendList")
+                .commit()
         }
 
-        // ── Refresh ──────────────────────────────────────────────────────────
+        // ── Pull-to-refresh ───────────────────────────────────────────────────
 
-        btnRefreshProfile.setOnClickListener {
-            loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
-            Toast.makeText(requireContext(), "Refreshed", Toast.LENGTH_SHORT).show()
-        }
+        swipeRefresh.setOnRefreshListener { refresh() }
 
-        loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
+        // Initial load
+        refresh()
     }
 
-    private fun loadIncomingRequests(
-        tvIncomingRequests: TextView,
-        tvFriendsComparison: TextView
-    ) {
+    private fun refresh() {
+        loadIncomingRequests()
+        loadFriendsComparison()
+    }
+
+    private fun loadIncomingRequests() {
         firebaseRepository.loadIncomingFriendRequests(
             onSuccess = { requests ->
                 if (!isAdded) return@loadIncomingFriendRequests
+
+                // Remove all existing request views (keep tvNoRequests)
+                val inflater = LayoutInflater.from(requireContext())
+                containerIncomingRequests.removeAllViews()
+
                 if (requests.isEmpty()) {
-                    tvIncomingRequests.text = "No pending requests"
-                    tvIncomingRequests.setOnClickListener(null)
+                    tvNoRequests.visibility = View.VISIBLE
+                    containerIncomingRequests.addView(tvNoRequests)
+                    tvRequestBadge.visibility = View.GONE
                 } else {
-                    val text = buildString {
-                        requests.forEach { request ->
-                            append("From: ${request.fromDisplayName} (${request.fromEmail})\n")
-                            append("Tap to accept\n\n")
-                        }
-                    }
-                    tvIncomingRequests.text = text
-                    val firstRequest = requests.first()
-                    tvIncomingRequests.setOnClickListener {
-                        firebaseRepository.acceptFriendRequest(
-                            request = firstRequest,
-                            onSuccess = {
-                                if (!isAdded) return@acceptFriendRequest
-                                Toast.makeText(requireContext(), "Friend request accepted.", Toast.LENGTH_SHORT).show()
-                                loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
-                                loadFriendsComparison(tvFriendsComparison)
-                            },
-                            onError = {
-                                if (!isAdded) return@acceptFriendRequest
-                                Toast.makeText(requireContext(), it.message ?: "Failed to accept.", Toast.LENGTH_SHORT).show()
-                            }
+                    tvNoRequests.visibility = View.GONE
+                    tvRequestBadge.text = requests.size.toString()
+                    tvRequestBadge.visibility = View.VISIBLE
+
+                    requests.forEach { request ->
+                        val itemView = inflater.inflate(
+                            R.layout.item_friend_request, containerIncomingRequests, false
                         )
+                        itemView.findViewById<TextView>(R.id.tvRequestName).text =
+                            request.fromDisplayName.ifBlank { request.fromEmail }
+                        itemView.findViewById<TextView>(R.id.tvRequestSub).text =
+                            "@${request.fromEmail}"
+
+                        itemView.findViewById<ImageButton>(R.id.btnAccept).setOnClickListener {
+                            firebaseRepository.acceptFriendRequest(
+                                request = request,
+                                onSuccess = {
+                                    if (!isAdded) return@acceptFriendRequest
+                                    Toast.makeText(requireContext(), "Friend request accepted.", Toast.LENGTH_SHORT).show()
+                                    refresh()
+                                },
+                                onError = {
+                                    if (!isAdded) return@acceptFriendRequest
+                                    Toast.makeText(requireContext(), it.message ?: "Failed to accept.", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+
+                        itemView.findViewById<ImageButton>(R.id.btnDecline).setOnClickListener {
+                            firebaseRepository.declineFriendRequest(
+                                requestId = request.requestId,
+                                onSuccess = {
+                                    if (!isAdded) return@declineFriendRequest
+                                    Toast.makeText(requireContext(), "Friend request declined.", Toast.LENGTH_SHORT).show()
+                                    loadIncomingRequests()
+                                },
+                                onError = {
+                                    if (!isAdded) return@declineFriendRequest
+                                    Toast.makeText(requireContext(), it.message ?: "Failed to decline.", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+
+                        containerIncomingRequests.addView(itemView)
                     }
                 }
+                swipeRefresh.isRefreshing = false
             },
             onError = {
                 if (!isAdded) return@loadIncomingFriendRequests
-                tvIncomingRequests.text = "Failed to load requests"
-                tvIncomingRequests.setOnClickListener(null)
+                containerIncomingRequests.removeAllViews()
+                tvNoRequests.text = "Failed to load requests"
+                tvNoRequests.visibility = View.VISIBLE
+                containerIncomingRequests.addView(tvNoRequests)
+                tvRequestBadge.visibility = View.GONE
+                swipeRefresh.isRefreshing = false
             }
         )
-        loadFriendsComparison(tvFriendsComparison)
     }
 
-    private fun loadFriendsComparison(tvFriendsComparison: TextView) {
+    private fun loadFriendsComparison() {
         firebaseRepository.loadCurrentUserProfile(
             onSuccess = { currentUserProfile ->
                 if (!isAdded) return@loadCurrentUserProfile
@@ -171,11 +199,22 @@ class Friends : Fragment() {
                                 }
                             }
                         }
+                        swipeRefresh.isRefreshing = false
                     },
-                    onError = { if (isAdded) tvFriendsComparison.text = "Failed to load friends" }
+                    onError = {
+                        if (isAdded) {
+                            tvFriendsComparison.text = "Failed to load friends"
+                            swipeRefresh.isRefreshing = false
+                        }
+                    }
                 )
             },
-            onError = { if (isAdded) tvFriendsComparison.text = "Failed to load profile" }
+            onError = {
+                if (isAdded) {
+                    tvFriendsComparison.text = "Failed to load profile"
+                    swipeRefresh.isRefreshing = false
+                }
+            }
         )
     }
 

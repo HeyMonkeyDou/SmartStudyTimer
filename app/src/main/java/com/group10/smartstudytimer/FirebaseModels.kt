@@ -159,5 +159,13 @@ data class FriendProfile(
     val username: String = "",
     val avatarId: String = "",
     val bestFocusScore: Long = 0,
-    val totalFocusMinutes: Long = 0
+    val totalFocusMinutes: Long = 0,
+    val nickname: String = ""
+)
+
+data class ChatMessage(
+    val messageId: String = "",
+    val senderId: String = "",
+    val text: String = "",
+    val timestamp: Long = 0
 )
