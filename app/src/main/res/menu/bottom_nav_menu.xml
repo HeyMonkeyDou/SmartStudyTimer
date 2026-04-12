@@ -15,6 +15,11 @@
         android:icon="@drawable/ic_dark_mode"/>
 
     <item
+        android:id="@+id/friends"
+        android:title="Friends"
+        android:icon="@drawable/ic_dark_mode"/>
+
+    <item
         android:id="@+id/profile"
         android:title="Profile"
         android:icon="@drawable/ic_account"/>

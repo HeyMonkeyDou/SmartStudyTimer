@@ -54,6 +54,11 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
 
+                R.id.friends -> {
+                    loadFragment(Friends())
+                    true
+                }
+
                 R.id.profile -> {
                     loadFragment(Profile())
                     true

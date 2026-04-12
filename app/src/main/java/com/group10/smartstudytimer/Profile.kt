@@ -1,17 +1,12 @@
 package com.group10.smartstudytimer
 
-import android.content.Intent
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
 import android.widget.Toast
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.fragment.app.Fragment
-import com.google.android.material.button.MaterialButton
-import com.google.firebase.auth.FirebaseAuth
 
 class Profile : Fragment() {
 
@@ -23,189 +18,94 @@ class Profile : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        return inflater.inflate(R.layout.fragment_profile, container, false)
-    }
+        val view = inflater.inflate(R.layout.fragment_profile, container, false)
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+        val repo = ProfileRepository(requireContext())
 
-        val user = FirebaseAuth.getInstance().currentUser
-        val emailText = view.findViewById<TextView>(R.id.profileEmailText)
-        val uidText = view.findViewById<TextView>(R.id.profileUidText)
-        val signOutButton = view.findViewById<MaterialButton>(R.id.signOutButton)
+        // Profile Info
+        repo.loadProfileHeader(
+            onSuccess = { profile ->
 
-        val inputFriendEmail = view.findViewById<EditText>(R.id.inputFriendEmail)
-        val btnSendFriendRequest = view.findViewById<Button>(R.id.btnSendFriendRequest)
-        val tvIncomingRequests = view.findViewById<TextView>(R.id.tvIncomingRequests)
-        val tvFriendsComparison = view.findViewById<TextView>(R.id.tvFriendsComparison)
-        val btnRefreshProfile = view.findViewById<Button>(R.id.btnRefreshProfile)
+                val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
 
-        emailText.text = user?.email.orEmpty().ifBlank { "No email available" }
-        uidText.text = user?.uid.orEmpty().ifBlank { "No user ID available" }
+                view.findViewById<TextView>(R.id.tvUsername).text =
+                    profile.displayName ?: "No name set"
 
-        firebaseRepository.saveCurrentUserProfile(
-            displayName = user?.displayName.orEmpty(),
-            totalFocusMinutes = 0,
-            avatarId = "",
-            onSuccess = {
-                // Profile saved successfully
+                view.findViewById<TextView>(R.id.profileEmailText).text =
+                    "Email: ${user?.email ?: "No email available"}"
+
+                view.findViewById<TextView>(R.id.profileUidText).text =
+                    "UID: ${user?.uid ?: profile.userId}"
             },
             onError = {
-                Toast.makeText(
-                    requireContext(),
-                    "Failed to save profile: ${it.message}",
-                    Toast.LENGTH_SHORT
-                ).show()
+                val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+
+                view.findViewById<TextView>(R.id.tvUsername).text = "Unknown user"
+                view.findViewById<TextView>(R.id.profileEmailText).text =
+                    "Email: ${user?.email ?: "No email available"}"
+
+                view.findViewById<TextView>(R.id.profileUidText).text =
+                    "UID: ${user?.uid ?: "No UID"}"
             }
         )
 
-        btnSendFriendRequest.setOnClickListener {
-            val targetEmail = inputFriendEmail.text.toString().trim().lowercase()
+        // Best score
+        val bestRecord = repo.getBestStudyRecord()
 
-            if (targetEmail.isEmpty()) {
-                Toast.makeText(requireContext(), "Please enter an email.", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
+        if (bestRecord != null) {
+            view.findViewById<TextView>(R.id.tvBestScore).text =
+                bestRecord.focusScore.toString()
 
-            firebaseRepository.sendFriendRequestByEmail(
-                targetEmail = targetEmail,
+            view.findViewById<TextView>(R.id.tvBestDate).text =
+                bestRecord.completedAt.toString()
+        }
+
+        // Records sharing
+        val shareButton = view.findViewById<Button>(R.id.btnShare)
+
+        shareButton.setOnClickListener {
+            val repo = ProfileRepository(requireContext())
+
+            repo.shareBestRecordImage(
                 onSuccess = {
-                    Toast.makeText(requireContext(), "Friend request sent.", Toast.LENGTH_SHORT).show()
-                    inputFriendEmail.setText("")
-                    loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
-                    loadFriendsComparison(tvFriendsComparison)
+                    // optional: show toast
+                },
+                onNoData = {
+                    Toast.makeText(requireContext(), "You don't have any records yet. Please start a session first.", Toast.LENGTH_SHORT).show()
                 },
                 onError = {
-                    Toast.makeText(
-                        requireContext(),
-                        it.message ?: "Failed to send request.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(requireContext(), "Sharing failed", Toast.LENGTH_SHORT).show()
                 }
             )
         }
 
-        loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
-        loadFriendsComparison(tvFriendsComparison)
+        // History list
+        val container = view.findViewById<LinearLayout>(R.id.historyContainer)
+        container.removeAllViews()
 
-        btnRefreshProfile.setOnClickListener {
-            loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
-            loadFriendsComparison(tvFriendsComparison)
-            Toast.makeText(requireContext(), "Profile refreshed", Toast.LENGTH_SHORT).show()
+        val historyList = repo.getDailyScoreHistory()
+
+        for (item in historyList) {
+
+            val row = layoutInflater.inflate(
+                R.layout.item_history,
+                container,
+                false
+            )
+
+            val tvDate = row.findViewById<TextView>(R.id.tvHistoryDate)
+            val tvScore = row.findViewById<TextView>(R.id.tvHistoryScoreText)
+            val progress = row.findViewById<com.google.android.material.progressindicator.CircularProgressIndicator>(
+                R.id.progressHistoryScore
+            )
+
+            tvDate.text = item.date.toString()
+            tvScore.text = item.score.toString()
+            progress.progress = item.score.toInt()
+
+            container.addView(row)
         }
 
-        signOutButton.setOnClickListener {
-            signOutButton.isEnabled = false
-            authRepository.signOut(requireActivity()) {
-                Toast.makeText(
-                    requireContext(),
-                    getString(R.string.profile_signed_out),
-                    Toast.LENGTH_SHORT
-                ).show()
-                startActivity(
-                    Intent(requireContext(), AuthActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                )
-                requireActivity().finish()
-            }
-        }
-    }
-
-    private fun loadIncomingRequests(
-        tvIncomingRequests: TextView,
-        tvFriendsComparison: TextView
-    ) {
-        firebaseRepository.loadIncomingFriendRequests(
-            onSuccess = { requests ->
-                if (requests.isEmpty()) {
-                    tvIncomingRequests.text = "No pending requests"
-                    tvIncomingRequests.setOnClickListener(null)
-                } else {
-                    val text = buildString {
-                        requests.forEach { request ->
-                            append("From: ${request.fromDisplayName} (${request.fromEmail})\n")
-                            append("Tap to accept this request\n\n")
-                        }
-                    }
-                    tvIncomingRequests.text = text
-
-                    val firstRequest = requests.first()
-                    tvIncomingRequests.setOnClickListener {
-                        firebaseRepository.acceptFriendRequest(
-                            request = firstRequest,
-                            onSuccess = {
-                                Toast.makeText(
-                                    requireContext(),
-                                    "Friend request accepted.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
-                                loadFriendsComparison(tvFriendsComparison)
-                            },
-                            onError = {
-                                Toast.makeText(
-                                    requireContext(),
-                                    it.message ?: "Failed to accept request.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        )
-                    }
-                }
-            },
-            onError = {
-                tvIncomingRequests.text = "Failed to load requests"
-                tvIncomingRequests.setOnClickListener(null)
-            }
-        )
-    }
-
-    private fun loadFriendsComparison(tvFriendsComparison: TextView) {
-        firebaseRepository.loadCurrentUserProfile(
-            onSuccess = { currentUserProfile ->
-                firebaseRepository.loadFriends(
-                    onSuccess = { friends ->
-                        val combinedList = mutableListOf<FriendProfile>()
-
-                        currentUserProfile?.let {
-                            combinedList.add(
-                                FriendProfile(
-                                    uid = it.uid,
-                                    displayName = if (it.displayName.isNotBlank()) "${it.displayName} (You)" else "You",
-                                    email = it.email,
-                                    avatarId = it.avatarId,
-                                    bestFocusScore = it.bestFocusScore,
-                                    totalFocusMinutes = it.totalFocusMinutes
-                                )
-                            )
-                        }
-
-                        combinedList.addAll(friends)
-
-                        if (combinedList.isEmpty()) {
-                            tvFriendsComparison.text = "No friends yet"
-                        } else {
-                            val sortedFriends = combinedList.sortedByDescending { it.bestFocusScore }
-
-                            val text = buildString {
-                                append("Friends Leaderboard\n\n")
-                                sortedFriends.forEachIndexed { index, friend ->
-                                    append("${index + 1}. ${friend.displayName} - Best Score: ${friend.bestFocusScore}, Total Minutes: ${friend.totalFocusMinutes}\n")
-                                }
-                            }
-
-                            tvFriendsComparison.text = text
-                        }
-                    },
-                    onError = {
-                        tvFriendsComparison.text = "Failed to load friends"
-                    }
-                )
-            },
-            onError = {
-                tvFriendsComparison.text = "Failed to load profile"
-            }
-        )
+        return view
     }
 }
