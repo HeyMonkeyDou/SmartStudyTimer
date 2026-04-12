@@ -48,7 +48,10 @@ data class RankedLeaderboardEntry(
 
 data class DailyScoreHistoryEntry(
     val date: String,
-    val score: Long
+    val score: Long,
+    val studyMinutes: Long,
+    val interruptionCount: Long,
+    val interruptedSeconds: Long
 )
 
 data class DailyStatisticsRecord(

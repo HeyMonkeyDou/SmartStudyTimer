@@ -28,9 +28,11 @@
                 android:layout_marginBottom="4dp" />
 
             <TextView
+                android:id="@+id/tvHistoryDetails"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textSize="12sp"
+                android:textColor="#6B6474"
                 android:text=""
                 android:layout_marginBottom="4dp" />
 
