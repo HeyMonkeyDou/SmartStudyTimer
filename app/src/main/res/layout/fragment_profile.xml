@@ -5,7 +5,6 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- Top Bar -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/topAppBar"
         android:layout_width="match_parent"
@@ -13,116 +12,145 @@
         android:padding="36dp"
         app:title="Profile" />
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="top"
-        android:padding="24dp"
-        android:orientation="vertical">
+        android:layout_weight="1">
 
-        <TextView
-            android:id="@+id/profileEmailLabel"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="40dp"
-            android:text="@string/profile_email_label"
-            android:textStyle="bold" />
+            android:gravity="top"
+            android:orientation="vertical"
+            android:padding="24dp">
 
-        <TextView
-            android:id="@+id/profileEmailText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textSize="16sp" />
+            <TextView
+                android:id="@+id/profileEmailLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="40dp"
+                android:text="@string/profile_email_label"
+                android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/profileUidLabel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="@string/profile_uid_label"
-            android:textStyle="bold" />
+            <TextView
+                android:id="@+id/profileEmailText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="16sp" />
 
-        <TextView
-            android:id="@+id/profileUidText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textSize="14sp" />
+            <TextView
+                android:id="@+id/profileUidLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="@string/profile_uid_label"
+                android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/addFriendLabel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="Add Friend by Email"
-            android:textStyle="bold" />
+            <TextView
+                android:id="@+id/profileUidText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="14sp" />
 
-        <EditText
-            android:id="@+id/inputFriendEmail"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="Enter friend's email"
-            android:inputType="textEmailAddress" />
+            <TextView
+                android:id="@+id/addFriendLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:text="Add Friend by Email"
+                android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/btnSendFriendRequest"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="12dp"
-            android:text="Send Friend Request" />
+            <EditText
+                android:id="@+id/inputFriendEmail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Enter friend's email"
+                android:inputType="textEmailAddress" />
 
-        <Button
-            android:id="@+id/btnRefreshProfile"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="24dp"
-            android:text="Refresh" />
+            <Button
+                android:id="@+id/btnSendFriendRequest"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="12dp"
+                android:text="Send Friend Request" />
 
-        <TextView
-            android:id="@+id/incomingRequestsLabel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:text="Incoming Friend Requests"
-            android:textStyle="bold" />
+            <Button
+                android:id="@+id/btnRefreshProfile"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="24dp"
+                android:text="Refresh" />
 
-        <TextView
-            android:id="@+id/tvIncomingRequests"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="No pending requests"
-            android:textSize="14sp" />
+            <TextView
+                android:id="@+id/incomingRequestsLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:text="Incoming Friend Requests"
+                android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/friendsComparisonLabel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:text="Friends Comparison"
-            android:textStyle="bold" />
+            <TextView
+                android:id="@+id/tvIncomingRequests"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="No pending requests"
+                android:textSize="14sp" />
 
-        <TextView
-            android:id="@+id/tvFriendsComparison"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="No friends yet"
-            android:textSize="14sp" />
+            <TextView
+                android:id="@+id/friendsComparisonLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:text="Friends Comparison"
+                android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/signOutButton"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="36dp"
-            android:text="@string/sign_out" />
+            <TextView
+                android:id="@+id/tvFriendsComparison"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="No friends yet"
+                android:textSize="14sp" />
 
-    </LinearLayout>
+            <TextView
+                android:id="@+id/removeFriendLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:text="Remove Friend by Email"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/inputRemoveFriendEmail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Enter friend's email"
+                android:inputType="textEmailAddress" />
+
+            <Button
+                android:id="@+id/btnRemoveFriend"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="12dp"
+                android:text="Remove Friend" />
+
+            <Button
+                android:id="@+id/signOutButton"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="36dp"
+                android:text="@string/sign_out" />
+
+        </LinearLayout>
+    </ScrollView>
 
 </LinearLayout>

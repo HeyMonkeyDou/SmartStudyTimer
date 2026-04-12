@@ -516,7 +516,56 @@ class FirebaseRepository(
         )
     }
 
+    fun removeFriendByEmail(
+        targetEmail: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val normalizedEmail = targetEmail.trim().lowercase()
 
+                firestore.collection(USERS_COLLECTION)
+                    .whereEqualTo("email", normalizedEmail)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        if (result.isEmpty) {
+                            onError(Exception("Friend not found"))
+                            return@addOnSuccessListener
+                        }
+
+                        val targetDoc = result.documents.first()
+                        val targetUid = targetDoc.id
+
+                        if (targetUid == currentUid) {
+                            onError(Exception("You cannot remove yourself"))
+                            return@addOnSuccessListener
+                        }
+
+                        val currentUserFriendRef = firestore.collection(USERS_COLLECTION)
+                            .document(currentUid)
+                            .collection(FRIENDS_SUBCOLLECTION)
+                            .document(targetUid)
+
+                        val targetUserFriendRef = firestore.collection(USERS_COLLECTION)
+                            .document(targetUid)
+                            .collection(FRIENDS_SUBCOLLECTION)
+                            .document(currentUid)
+
+                        val batch = firestore.batch()
+                        batch.delete(currentUserFriendRef)
+                        batch.delete(targetUserFriendRef)
+
+                        batch.commit()
+                            .addOnSuccessListener { onSuccess() }
+                            .addOnFailureListener { onError(it) }
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
 
 
     companion object {

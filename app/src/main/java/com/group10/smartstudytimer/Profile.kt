@@ -48,7 +48,7 @@ class Profile : Fragment() {
             totalFocusMinutes = 0,
             avatarId = "",
             onSuccess = {
-                // profile saved
+                // Profile saved successfully
             },
             onError = {
                 Toast.makeText(
@@ -72,7 +72,7 @@ class Profile : Fragment() {
                 onSuccess = {
                     Toast.makeText(requireContext(), "Friend request sent.", Toast.LENGTH_SHORT).show()
                     inputFriendEmail.setText("")
-                    loadIncomingRequests(tvIncomingRequests)
+                    loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
                     loadFriendsComparison(tvFriendsComparison)
                 },
                 onError = {
@@ -85,11 +85,11 @@ class Profile : Fragment() {
             )
         }
 
-        loadIncomingRequests(tvIncomingRequests)
+        loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
         loadFriendsComparison(tvFriendsComparison)
 
         btnRefreshProfile.setOnClickListener {
-            loadIncomingRequests(tvIncomingRequests)
+            loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
             loadFriendsComparison(tvFriendsComparison)
             Toast.makeText(requireContext(), "Profile refreshed", Toast.LENGTH_SHORT).show()
         }
@@ -112,7 +112,10 @@ class Profile : Fragment() {
         }
     }
 
-    private fun loadIncomingRequests(tvIncomingRequests: TextView) {
+    private fun loadIncomingRequests(
+        tvIncomingRequests: TextView,
+        tvFriendsComparison: TextView
+    ) {
         firebaseRepository.loadIncomingFriendRequests(
             onSuccess = { requests ->
                 if (requests.isEmpty()) {
@@ -137,10 +140,8 @@ class Profile : Fragment() {
                                     "Friend request accepted.",
                                     Toast.LENGTH_SHORT
                                 ).show()
-                                loadIncomingRequests(tvIncomingRequests)
-                                view?.findViewById<TextView>(R.id.tvFriendsComparison)?.let {
-                                    loadFriendsComparison(it)
-                                }
+                                loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
+                                loadFriendsComparison(tvFriendsComparison)
                             },
                             onError = {
                                 Toast.makeText(
@@ -161,27 +162,49 @@ class Profile : Fragment() {
     }
 
     private fun loadFriendsComparison(tvFriendsComparison: TextView) {
-        firebaseRepository.loadFriends(
-            onSuccess = { friends ->
-                if (friends.isEmpty()) {
-                    tvFriendsComparison.text = "No friends yet"
-                } else {
-                    val sortedFriends = friends.sortedByDescending { it.bestFocusScore }
+        firebaseRepository.loadCurrentUserProfile(
+            onSuccess = { currentUserProfile ->
+                firebaseRepository.loadFriends(
+                    onSuccess = { friends ->
+                        val combinedList = mutableListOf<FriendProfile>()
 
-                    val text = buildString {
-                        append("Friends Leaderboard\n\n")
-                        sortedFriends.forEachIndexed { index, friend ->
-                            append(
-                                "${index + 1}. ${friend.displayName} - Best Score: ${friend.bestFocusScore}, Total Minutes: ${friend.totalFocusMinutes}\n"
+                        currentUserProfile?.let {
+                            combinedList.add(
+                                FriendProfile(
+                                    uid = it.uid,
+                                    displayName = if (it.displayName.isNotBlank()) "${it.displayName} (You)" else "You",
+                                    email = it.email,
+                                    avatarId = it.avatarId,
+                                    bestFocusScore = it.bestFocusScore,
+                                    totalFocusMinutes = it.totalFocusMinutes
+                                )
                             )
                         }
-                    }
 
-                    tvFriendsComparison.text = text
-                }
+                        combinedList.addAll(friends)
+
+                        if (combinedList.isEmpty()) {
+                            tvFriendsComparison.text = "No friends yet"
+                        } else {
+                            val sortedFriends = combinedList.sortedByDescending { it.bestFocusScore }
+
+                            val text = buildString {
+                                append("Friends Leaderboard\n\n")
+                                sortedFriends.forEachIndexed { index, friend ->
+                                    append("${index + 1}. ${friend.displayName} - Best Score: ${friend.bestFocusScore}, Total Minutes: ${friend.totalFocusMinutes}\n")
+                                }
+                            }
+
+                            tvFriendsComparison.text = text
+                        }
+                    },
+                    onError = {
+                        tvFriendsComparison.text = "Failed to load friends"
+                    }
+                )
             },
             onError = {
-                tvFriendsComparison.text = "Failed to load friends"
+                tvFriendsComparison.text = "Failed to load profile"
             }
         )
     }
