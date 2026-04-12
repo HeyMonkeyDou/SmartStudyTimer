@@ -1,5 +1,6 @@
 package com.group10.smartstudytimer
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.*
 import android.widget.Button
@@ -26,6 +27,16 @@ class Profile : Fragment() {
         val avatarView = view.findViewById<ImageView>(R.id.ivAvatar)
         val levelBadgeCard = view.findViewById<MaterialCardView>(R.id.cardLevelBadge)
         val levelBadgeText = view.findViewById<TextView>(R.id.tvLevelBadge)
+        val signOutButton = view.findViewById<Button>(R.id.signOutButton)
+
+        signOutButton.setOnClickListener {
+            authRepository.signOut(requireActivity()) {
+                startActivity(Intent(requireContext(), AuthActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                })
+                requireActivity().finish()
+            }
+        }
 
         // Profile Info
         repo.loadProfileHeader(
