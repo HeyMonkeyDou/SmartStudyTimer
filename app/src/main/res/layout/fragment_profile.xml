@@ -52,20 +52,34 @@
             android:textSize="14sp" />
 
         <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Username"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/profileUsernameText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textSize="16sp" />
+
+        <TextView
             android:id="@+id/addFriendLabel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="32dp"
-            android:text="Add Friend by Email"
+            android:text="Add Friend by Username"
             android:textStyle="bold" />
 
         <EditText
-            android:id="@+id/inputFriendEmail"
+            android:id="@+id/inputFriendUsername"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:hint="Enter friend's email"
-            android:inputType="textEmailAddress" />
+            android:hint="Enter friend's username"
+            android:inputType="textNoSuggestions" />
 
         <Button
             android:id="@+id/btnSendFriendRequest"
