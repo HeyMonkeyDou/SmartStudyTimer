@@ -8,6 +8,7 @@ import java.util.Date
 data class UserProfile(
     val uid: String = "",
     val displayName: String = "",
+    val email: String = "",
     val totalFocusMinutes: Long = 0,
     val avatarId: String = "",
     val bestFocusScore: Long = 0,
@@ -75,6 +76,7 @@ internal fun DocumentSnapshot.toUserProfile(): UserProfile {
     return UserProfile(
         uid = id,
         displayName = getString("displayName").orEmpty(),
+        email = getString("email").orEmpty(),
         totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
         avatarId = AvatarAssets.resolveAvatarId(
             userId = id,
@@ -132,3 +134,23 @@ internal fun DocumentSnapshot.toStudySessionRecord(): StudySessionRecord {
         note = getString("note").orEmpty()
     )
 }
+
+data class FriendRequest(
+    val requestId: String = "",
+    val fromUid: String = "",
+    val fromDisplayName: String = "",
+    val fromEmail: String = "",
+    val toUid: String = "",
+    val toEmail: String = "",
+    val status: String = "", // pending / accepted
+    val createdAtEpochMillis: Long = 0
+)
+
+data class FriendProfile(
+    val uid: String = "",
+    val displayName: String = "",
+    val email: String = "",
+    val avatarId: String = "",
+    val bestFocusScore: Long = 0,
+    val totalFocusMinutes: Long = 0
+)

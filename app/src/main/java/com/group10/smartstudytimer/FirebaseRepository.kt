@@ -4,6 +4,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import kotlin.text.get
+import kotlin.text.set
 
 class FirebaseRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
@@ -54,6 +56,7 @@ class FirebaseRepository(
                     profile = UserProfile(
                         uid = uid,
                         displayName = displayName.ifBlank { uid.take(6) },
+                        email = auth.currentUser?.email.orEmpty(),
                         totalFocusMinutes = totalFocusMinutes,
                         avatarId = AvatarAssets.resolveAvatarId(uid, avatarId)
                     ),
@@ -74,6 +77,7 @@ class FirebaseRepository(
         val resolvedDisplayName = profile.displayName.ifBlank { profile.uid.take(6) }
         val payload = hashMapOf(
             "displayName" to resolvedDisplayName,
+            "email" to profile.email,
             "totalFocusMinutes" to profile.totalFocusMinutes,
             "avatarId" to resolvedAvatarId,
             "bestFocusScore" to profile.bestFocusScore,
@@ -311,10 +315,183 @@ class FirebaseRepository(
             .addOnFailureListener { error -> onError(error) }
     }
 
+    fun sendFriendRequestByEmail(
+        targetEmail: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val currentUser = auth.currentUser
+                val currentDisplayName = currentUser?.displayName ?: currentUid.take(6)
+                val currentEmail = currentUser?.email ?: ""
+
+                firestore.collection(USERS_COLLECTION)
+                    .whereEqualTo("email", targetEmail)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        if (result.isEmpty) {
+                            onError(Exception("User not found"))
+                            return@addOnSuccessListener
+                        }
+
+                        val targetDoc = result.documents.first()
+                        val targetUid = targetDoc.id
+
+                        if (targetUid == currentUid) {
+                            onError(Exception("You cannot add yourself"))
+                            return@addOnSuccessListener
+                        }
+
+                        val requestRef = firestore.collection(FRIEND_REQUESTS_COLLECTION).document()
+
+                        val payload = hashMapOf(
+                            "requestId" to requestRef.id,
+                            "fromUid" to currentUid,
+                            "fromDisplayName" to currentDisplayName,
+                            "fromEmail" to currentEmail,
+                            "toUid" to targetUid,
+                            "toEmail" to targetEmail,
+                            "status" to "pending",
+                            "createdAtEpochMillis" to System.currentTimeMillis()
+                        )
+
+                        requestRef.set(payload)
+                            .addOnSuccessListener { onSuccess() }
+                            .addOnFailureListener { onError(it) }
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun loadIncomingFriendRequests(
+        onSuccess: (List<FriendRequest>) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                firestore.collection(FRIEND_REQUESTS_COLLECTION)
+                    .whereEqualTo("toUid", currentUid)
+                    .whereEqualTo("status", "pending")
+                    .get()
+                    .addOnSuccessListener { result ->
+                        val requests = result.documents.map { doc ->
+                            FriendRequest(
+                                requestId = doc.getString("requestId").orEmpty(),
+                                fromUid = doc.getString("fromUid").orEmpty(),
+                                fromDisplayName = doc.getString("fromDisplayName").orEmpty(),
+                                fromEmail = doc.getString("fromEmail").orEmpty(),
+                                toUid = doc.getString("toUid").orEmpty(),
+                                toEmail = doc.getString("toEmail").orEmpty(),
+                                status = doc.getString("status").orEmpty(),
+                                createdAtEpochMillis = doc.getLong("createdAtEpochMillis") ?: 0L
+                            )
+                        }
+                        onSuccess(requests)
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun acceptFriendRequest(
+        request: FriendRequest,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        val batch = firestore.batch()
+
+        val requestRef = firestore.collection(FRIEND_REQUESTS_COLLECTION).document(request.requestId)
+
+        val currentUserFriendRef = firestore.collection(USERS_COLLECTION)
+            .document(request.toUid)
+            .collection(FRIENDS_SUBCOLLECTION)
+            .document(request.fromUid)
+
+        val senderFriendRef = firestore.collection(USERS_COLLECTION)
+            .document(request.fromUid)
+            .collection(FRIENDS_SUBCOLLECTION)
+            .document(request.toUid)
+
+        val currentUserData = hashMapOf(
+            "uid" to request.fromUid,
+            "displayName" to request.fromDisplayName,
+            "email" to request.fromEmail
+        )
+
+        val senderData = hashMapOf(
+            "uid" to request.toUid,
+            "displayName" to (auth.currentUser?.displayName ?: request.toUid.take(6)),
+            "email" to (auth.currentUser?.email ?: "")
+        )
+
+        batch.update(requestRef, "status", "accepted")
+        batch.set(currentUserFriendRef, currentUserData)
+        batch.set(senderFriendRef, senderData)
+
+        batch.commit()
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it) }
+    }
+
+    fun loadFriends(
+        onSuccess: (List<FriendProfile>) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                firestore.collection(USERS_COLLECTION)
+                    .document(currentUid)
+                    .collection(FRIENDS_SUBCOLLECTION)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        val basicFriends = result.documents.mapNotNull { doc ->
+                            val uid = doc.getString("uid").orEmpty()
+                            if (uid.isBlank()) null else uid
+                        }
+
+                        if (basicFriends.isEmpty()) {
+                            onSuccess(emptyList())
+                            return@addOnSuccessListener
+                        }
+
+                        firestore.collection(USERS_COLLECTION)
+                            .whereIn(com.google.firebase.firestore.FieldPath.documentId(), basicFriends)
+                            .get()
+                            .addOnSuccessListener { userDocs ->
+                                val friends = userDocs.documents.map { doc ->
+                                    FriendProfile(
+                                        uid = doc.id,
+                                        displayName = doc.getString("displayName").orEmpty(),
+                                        email = doc.getString("email").orEmpty(),
+                                        avatarId = AvatarAssets.resolveAvatarId(doc.id, doc.getString("avatarId")),
+                                        bestFocusScore = doc.getLong("bestFocusScore") ?: 0L,
+                                        totalFocusMinutes = doc.getLong("totalFocusMinutes") ?: 0L
+                                    )
+                                }
+                                onSuccess(friends)
+                            }
+                            .addOnFailureListener { onError(it) }
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+
+
+
     companion object {
         private const val USERS_COLLECTION = "users"
         private const val SESSIONS_COLLECTION = "study_sessions"
         private const val SESSION_ITEMS_SUBCOLLECTION = "items"
+        private const val FRIEND_REQUESTS_COLLECTION = "friend_requests"
+        private const val FRIENDS_SUBCOLLECTION = "friends"
     }
 
     private fun sessionDocuments(uid: String) =
@@ -323,3 +500,4 @@ class FirebaseRepository(
     private fun sessionRootDocument(uid: String) =
         firestore.collection(SESSIONS_COLLECTION).document(uid)
 }
+
