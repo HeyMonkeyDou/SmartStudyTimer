@@ -5,13 +5,13 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
-import android.widget.Button
-import android.widget.EditText
 
 class Profile : Fragment() {
 
@@ -33,19 +33,22 @@ class Profile : Fragment() {
         val emailText = view.findViewById<TextView>(R.id.profileEmailText)
         val uidText = view.findViewById<TextView>(R.id.profileUidText)
         val signOutButton = view.findViewById<MaterialButton>(R.id.signOutButton)
+
         val inputFriendEmail = view.findViewById<EditText>(R.id.inputFriendEmail)
         val btnSendFriendRequest = view.findViewById<Button>(R.id.btnSendFriendRequest)
         val tvIncomingRequests = view.findViewById<TextView>(R.id.tvIncomingRequests)
         val tvFriendsComparison = view.findViewById<TextView>(R.id.tvFriendsComparison)
+        val btnRefreshProfile = view.findViewById<Button>(R.id.btnRefreshProfile)
 
         emailText.text = user?.email.orEmpty().ifBlank { "No email available" }
         uidText.text = user?.uid.orEmpty().ifBlank { "No user ID available" }
+
         firebaseRepository.saveCurrentUserProfile(
             displayName = user?.displayName.orEmpty(),
             totalFocusMinutes = 0,
             avatarId = "",
             onSuccess = {
-                // Optional: profile saved successfully
+                // profile saved
             },
             onError = {
                 Toast.makeText(
@@ -57,7 +60,7 @@ class Profile : Fragment() {
         )
 
         btnSendFriendRequest.setOnClickListener {
-            val targetEmail = inputFriendEmail.text.toString().trim()
+            val targetEmail = inputFriendEmail.text.toString().trim().lowercase()
 
             if (targetEmail.isEmpty()) {
                 Toast.makeText(requireContext(), "Please enter an email.", Toast.LENGTH_SHORT).show()
@@ -69,16 +72,52 @@ class Profile : Fragment() {
                 onSuccess = {
                     Toast.makeText(requireContext(), "Friend request sent.", Toast.LENGTH_SHORT).show()
                     inputFriendEmail.setText("")
+                    loadIncomingRequests(tvIncomingRequests)
+                    loadFriendsComparison(tvFriendsComparison)
                 },
                 onError = {
-                    Toast.makeText(requireContext(), it.message ?: "Failed to send request.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        requireContext(),
+                        it.message ?: "Failed to send request.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             )
         }
+
+        loadIncomingRequests(tvIncomingRequests)
+        loadFriendsComparison(tvFriendsComparison)
+
+        btnRefreshProfile.setOnClickListener {
+            loadIncomingRequests(tvIncomingRequests)
+            loadFriendsComparison(tvFriendsComparison)
+            Toast.makeText(requireContext(), "Profile refreshed", Toast.LENGTH_SHORT).show()
+        }
+
+        signOutButton.setOnClickListener {
+            signOutButton.isEnabled = false
+            authRepository.signOut(requireActivity()) {
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.profile_signed_out),
+                    Toast.LENGTH_SHORT
+                ).show()
+                startActivity(
+                    Intent(requireContext(), AuthActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                )
+                requireActivity().finish()
+            }
+        }
+    }
+
+    private fun loadIncomingRequests(tvIncomingRequests: TextView) {
         firebaseRepository.loadIncomingFriendRequests(
             onSuccess = { requests ->
                 if (requests.isEmpty()) {
                     tvIncomingRequests.text = "No pending requests"
+                    tvIncomingRequests.setOnClickListener(null)
                 } else {
                     val text = buildString {
                         requests.forEach { request ->
@@ -93,10 +132,22 @@ class Profile : Fragment() {
                         firebaseRepository.acceptFriendRequest(
                             request = firstRequest,
                             onSuccess = {
-                                Toast.makeText(requireContext(), "Friend request accepted.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    requireContext(),
+                                    "Friend request accepted.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                loadIncomingRequests(tvIncomingRequests)
+                                view?.findViewById<TextView>(R.id.tvFriendsComparison)?.let {
+                                    loadFriendsComparison(it)
+                                }
                             },
                             onError = {
-                                Toast.makeText(requireContext(), it.message ?: "Failed to accept request.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    requireContext(),
+                                    it.message ?: "Failed to accept request.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         )
                     }
@@ -104,8 +155,12 @@ class Profile : Fragment() {
             },
             onError = {
                 tvIncomingRequests.text = "Failed to load requests"
+                tvIncomingRequests.setOnClickListener(null)
             }
         )
+    }
+
+    private fun loadFriendsComparison(tvFriendsComparison: TextView) {
         firebaseRepository.loadFriends(
             onSuccess = { friends ->
                 if (friends.isEmpty()) {
@@ -116,7 +171,9 @@ class Profile : Fragment() {
                     val text = buildString {
                         append("Friends Leaderboard\n\n")
                         sortedFriends.forEachIndexed { index, friend ->
-                            append("${index + 1}. ${friend.displayName} - Best Score: ${friend.bestFocusScore}, Total Minutes: ${friend.totalFocusMinutes}\n")
+                            append(
+                                "${index + 1}. ${friend.displayName} - Best Score: ${friend.bestFocusScore}, Total Minutes: ${friend.totalFocusMinutes}\n"
+                            )
                         }
                     }
 
@@ -127,17 +184,5 @@ class Profile : Fragment() {
                 tvFriendsComparison.text = "Failed to load friends"
             }
         )
-        signOutButton.setOnClickListener {
-            signOutButton.isEnabled = false
-            authRepository.signOut(requireActivity()) {
-                Toast.makeText(requireContext(), getString(R.string.profile_signed_out), Toast.LENGTH_SHORT).show()
-                startActivity(
-                    Intent(requireContext(), AuthActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                )
-                requireActivity().finish()
-            }
-        }
     }
 }
