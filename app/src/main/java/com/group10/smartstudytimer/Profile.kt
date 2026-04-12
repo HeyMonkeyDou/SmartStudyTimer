@@ -48,9 +48,6 @@ class Profile : Fragment() {
 
             view.findViewById<TextView>(R.id.profileEmailText).text =
                 "Email: ${user?.email ?: "No email available"}"
-
-            view.findViewById<TextView>(R.id.profileUidText).text =
-                "UID: ${user?.uid ?: profile.userId}"
         }
 
         signOutButton.setOnClickListener {
@@ -99,9 +96,6 @@ class Profile : Fragment() {
                 view.findViewById<TextView>(R.id.tvUsername).text = "Unknown user"
                 view.findViewById<TextView>(R.id.profileEmailText).text =
                     "Email: ${user?.email ?: "No email available"}"
-
-                view.findViewById<TextView>(R.id.profileUidText).text =
-                    "UID: ${user?.uid ?: "No UID"}"
             }
         )
 

@@ -9,7 +9,6 @@
     <string name="session_expired">Your session expired. Please sign in again.</string>
     <string name="profile_title">Profile</string>
     <string name="profile_email_label">Email</string>
-    <string name="profile_uid_label">UID</string>
     <string name="profile_signed_out">Signed out.</string>
     <string name="sign_out">Sign out</string>
     <!-- TODO: Remove or change this placeholder text -->
