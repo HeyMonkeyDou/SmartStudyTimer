@@ -29,7 +29,7 @@ class Profile : Fragment() {
 
         val repo = ProfileRepository(requireContext())
         val avatarView = view.findViewById<ImageView>(R.id.ivAvatar)
-        val levelBadgeCard = view.findViewById<MaterialCardView>(R.id.cardLevelBadge)
+        val levelBadgeView = view.findViewById<ImageView>(R.id.ivLevelBadge)
         val levelBadgeText = view.findViewById<TextView>(R.id.tvLevelBadge)
         val signOutButton = view.findViewById<Button>(R.id.signOutButton)
         val editProfileButton = view.findViewById<Button>(R.id.btnEditProfile)
@@ -164,10 +164,10 @@ class Profile : Fragment() {
 
         val historyList = repo.getDailyScoreHistory()
         val streakLevel = StudyStreakLevels.resolve(historyList)
-        levelBadgeCard.setCardBackgroundColor(streakLevel.backgroundColor)
+        levelBadgeView.setImageResource(streakLevel.badgeResId)
         levelBadgeText.text = streakLevel.label
-        levelBadgeText.setTextColor(streakLevel.textColor)
-        levelBadgeCard.contentDescription = "${streakLevel.label} level, ${streakLevel.streakDays} day streak"
+        levelBadgeText.setTextColor(Color.parseColor("#5F6368"))
+        levelBadgeView.contentDescription = "${streakLevel.label} level, ${streakLevel.streakDays} day streak"
 
         for (item in historyList) {
 

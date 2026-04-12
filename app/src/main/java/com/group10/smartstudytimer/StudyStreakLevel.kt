@@ -7,19 +7,20 @@ data class StudyStreakLevel(
     val streakDays: Int,
     val label: String,
     val backgroundColor: Int,
-    val textColor: Int
+    val textColor: Int,
+    val badgeResId: Int
 )
 
 object StudyStreakLevels {
     private val orderedLevels = listOf(
-        LevelDefinition("Explorer", color("#B0BEC5"), color("#263238")),
-        LevelDefinition("Starter", color("#546E7A"), Color.WHITE),
-        LevelDefinition("Rookie", color("#1565C0"), Color.WHITE),
-        LevelDefinition("Steady", color("#2E7D32"), Color.WHITE),
-        LevelDefinition("Pro", color("#00897B"), Color.WHITE),
-        LevelDefinition("Master", color("#FF8A00"), Color.WHITE),
-        LevelDefinition("Elite", color("#A53DFF"), Color.WHITE),
-        LevelDefinition("Legend", color("#5B2BE0"), Color.WHITE)
+        LevelDefinition("Explorer", color("#B0BEC5"), color("#263238"), R.drawable.badge_explorer),
+        LevelDefinition("Starter", color("#546E7A"), Color.WHITE, R.drawable.badge_starter),
+        LevelDefinition("Rookie", color("#1565C0"), Color.WHITE, R.drawable.badge_rookie),
+        LevelDefinition("Steady", color("#2E7D32"), Color.WHITE, R.drawable.badge_steady),
+        LevelDefinition("Pro", color("#00897B"), Color.WHITE, R.drawable.badge_pro),
+        LevelDefinition("Master", color("#FF8A00"), Color.WHITE, R.drawable.badge_master),
+        LevelDefinition("Elite", color("#A53DFF"), Color.WHITE, R.drawable.badge_elite),
+        LevelDefinition("Legend", color("#5B2BE0"), Color.WHITE, R.drawable.badge_legend)
     )
 
     fun resolve(
@@ -79,14 +80,16 @@ object StudyStreakLevels {
             streakDays = streakDays,
             label = level.label,
             backgroundColor = level.backgroundColor,
-            textColor = level.textColor
+            textColor = level.textColor,
+            badgeResId = level.badgeResId
         )
     }
 
     private data class LevelDefinition(
         val label: String,
         val backgroundColor: Int,
-        val textColor: Int
+        val textColor: Int,
+        val badgeResId: Int
     )
 
     private fun color(value: String): Int = Color.parseColor(value)
