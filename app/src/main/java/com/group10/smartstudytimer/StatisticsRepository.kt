@@ -172,7 +172,7 @@ class StatisticsRepository(
     }
 
     private fun syncBestFocusScoreToFirebase(sessions: List<StudySessionRecord>) {
-        val bestRecord = StatisticsAggregator.buildDailyPeakScoreRecords(sessions)
+        val bestRecord = StatisticsAggregator.buildDailyScoreRecords(sessions)
             .maxWithOrNull(compareBy<DailyStatisticsRecord> { it.focusScore }.thenBy { it.date })
             ?: DailyStatisticsRecord()
 
@@ -266,6 +266,15 @@ object StatisticsAggregator {
                     record.interruptedSeconds > 0 ||
                     record.completedSessions > 0
             }
+    }
+
+    fun buildDailyScoreRecords(sessions: List<StudySessionRecord>): List<DailyStatisticsRecord> {
+        return sessions
+            .mapNotNull { it.toLocalDate() }
+            .distinct()
+            .sorted()
+            .map { date -> buildDailyStatistics(sessions, date) }
+            .filter { it.focusScore > 0 }
     }
 
     fun buildDailyPeakScoreRecords(sessions: List<StudySessionRecord>): List<DailyStatisticsRecord> {

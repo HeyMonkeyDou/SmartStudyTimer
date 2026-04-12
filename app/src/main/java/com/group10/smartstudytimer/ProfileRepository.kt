@@ -122,11 +122,11 @@ class ProfileRepository(
 
     private fun loadDailyScoreHistoryInternal(): List<DailyScoreHistoryEntry> {
         val sessions = statisticsRepository.getRecordedSessions()
-        return StatisticsAggregator.buildDailyPeakScoreRecords(sessions)
-            .map { dailyPeak ->
+        return StatisticsAggregator.buildDailyScoreRecords(sessions)
+            .map { dailyRecord ->
                 DailyScoreHistoryEntry(
-                    date = dailyPeak.date,
-                    score = dailyPeak.focusScore
+                    date = dailyRecord.date,
+                    score = dailyRecord.focusScore
                 )
             }
             .filter { it.score > 0 }
