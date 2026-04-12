@@ -32,7 +32,7 @@ class Home : Fragment(), SensorEventListener {
         StatisticsRepository.getInstance(requireContext())
     }
 
-    private lateinit var homeContainer: LinearLayout
+    private lateinit var rootLayout: LinearLayout
     private lateinit var radioGroupMode: RadioGroup
     private lateinit var radioNormal: RadioButton
     private lateinit var radioPomodoro: RadioButton
@@ -143,7 +143,7 @@ class Home : Fragment(), SensorEventListener {
     }
 
     private fun bindViews(view: View) {
-        homeContainer = view.findViewById(R.id.homeContainer)
+        rootLayout = view.findViewById(R.id.rootLayout)
         radioGroupMode = view.findViewById(R.id.radioGroupMode)
         radioNormal = view.findViewById(R.id.radioNormal)
         radioPomodoro = view.findViewById(R.id.radioPomodoro)
@@ -294,10 +294,13 @@ class Home : Fragment(), SensorEventListener {
                 updateInputVisibility()
                 updateButtons()
                 updateUIState()
+
+                (requireActivity() as MainActivity).setBottomNavVisibility(true)
             }
         }.start()
 
         timerRunning = true
+        (requireActivity() as MainActivity).setBottomNavVisibility(false)
 
         // Hide inputs and dismiss keyboard so they don't reappear when returning from another app
         updateInputVisibility()
@@ -395,6 +398,8 @@ class Home : Fragment(), SensorEventListener {
         updateInputVisibility()
         updateButtons()
         updateUIState()
+
+        (requireActivity() as MainActivity).setBottomNavVisibility(true)
     }
 
     private fun resetSessionState() {
@@ -407,6 +412,7 @@ class Home : Fragment(), SensorEventListener {
         stopDistractionService()
         updateTimerText()
         updateButtons()
+        (requireActivity() as MainActivity).setBottomNavVisibility(true)
     }
 
     private fun updateTimerText() {
@@ -427,24 +433,72 @@ class Home : Fragment(), SensorEventListener {
         btnStart.isEnabled = !timerRunning
         btnPause.isEnabled = timerRunning
         btnReset.isEnabled = timerRunning || timeLeftInMillis > 0
+
+        updateUIState()
     }
 
+    // Update primary color (color used on buttons)
+    private fun updatePrimaryColor(colorHex: String) {
+        val color = Color.parseColor(colorHex)
+
+        val enabledColor = color
+        val disabledColor = Color.parseColor("#BDBDBD") // for disabled buttons
+
+        // Buttons Colors
+        btnStart.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            if (btnStart.isEnabled) enabledColor else disabledColor
+        )
+
+        btnPause.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            if (btnPause.isEnabled) enabledColor else disabledColor
+        )
+
+        btnReset.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            if (btnReset.isEnabled) enabledColor else disabledColor
+        )
+
+        btnVoiceCommand.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            if (btnVoiceCommand.isEnabled) enabledColor else disabledColor
+        )
+
+        // Radio buttons
+        val radioColorStateList = android.content.res.ColorStateList(
+            arrayOf(
+                intArrayOf(android.R.attr.state_checked),
+                intArrayOf(-android.R.attr.state_checked)
+            ),
+            intArrayOf(
+                enabledColor,  // checked
+                Color.GRAY     // unchecked
+            )
+        )
+
+        radioNormal.buttonTintList = radioColorStateList
+        radioPomodoro.buttonTintList = radioColorStateList
+    }
+
+    // Update color palette based on timer state
     private fun updateUIState() {
         when {
             sessionInvalidated -> {
-                homeContainer.setBackgroundColor(Color.parseColor("#FFEBEE"))
+                rootLayout.setBackgroundColor(Color.parseColor("#FFEBEE"))
+                updatePrimaryColor("#95405B")
             }
             timerRunning && isBreakTime -> {
-                homeContainer.setBackgroundColor(Color.parseColor("#E3F2FD"))
+                rootLayout.setBackgroundColor(Color.parseColor("#E3F2FD"))
+                updatePrimaryColor("#006487")
             }
             timerRunning -> {
-                homeContainer.setBackgroundColor(Color.parseColor("#E8F5E9"))
+                rootLayout.setBackgroundColor(Color.parseColor("#E8F5E9"))
+                updatePrimaryColor("#1E6945")
             }
             isPomodoroMode -> {
-                homeContainer.setBackgroundColor(Color.parseColor("#FFF8E1"))
+                rootLayout.setBackgroundColor(Color.parseColor("#FFF8E1"))
+                updatePrimaryColor("#685D05")
             }
             else -> {
-                homeContainer.setBackgroundColor(Color.parseColor("#FEF7FF"))
+                rootLayout.setBackgroundColor(Color.parseColor("#FEF7FF"))
+                updatePrimaryColor("#6050A0")
             }
         }
     }
