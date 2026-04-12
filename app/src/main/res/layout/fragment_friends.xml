@@ -95,31 +95,6 @@
                 android:textSize="12sp"
                 android:visibility="gone" />
 
-            <!-- ── Add Friend ── -->
-            <TextView
-                android:id="@+id/addFriendLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
-                android:text="Add Friend by Username"
-                android:textStyle="bold" />
-
-            <EditText
-                android:id="@+id/inputFriendUsername"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:hint="Enter friend's username"
-                android:inputType="textNoSuggestions" />
-
-            <Button
-                android:id="@+id/btnSendFriendRequest"
-                style="@style/Widget.Material3.Button"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="12dp"
-                android:text="Send Friend Request" />
-
             <Button
                 android:id="@+id/btnRefreshProfile"
                 style="@style/Widget.Material3.Button.OutlinedButton"

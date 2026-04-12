@@ -36,8 +36,6 @@ class Friends : Fragment() {
         val usernameStatusText = view.findViewById<TextView>(R.id.usernameStatusText)
 
         // Friend views
-        val inputFriendUsername = view.findViewById<EditText>(R.id.inputFriendUsername)
-        val btnSendFriendRequest = view.findViewById<Button>(R.id.btnSendFriendRequest)
         val btnRefreshProfile = view.findViewById<Button>(R.id.btnRefreshProfile)
         val tvIncomingRequests = view.findViewById<TextView>(R.id.tvIncomingRequests)
         val tvFriendsComparison = view.findViewById<TextView>(R.id.tvFriendsComparison)
@@ -62,6 +60,7 @@ class Friends : Fragment() {
         // Load current username
         firebaseRepository.loadCurrentUserProfile(
             onSuccess = { profile ->
+                if (!isAdded) return@loadCurrentUserProfile
                 val current = profile?.username.orEmpty()
                 if (current.isNotBlank()) {
                     inputNewUsername.setText(current)
@@ -70,7 +69,7 @@ class Friends : Fragment() {
                     showEditMode()
                 }
             },
-            onError = { showEditMode() }
+            onError = { if (isAdded) showEditMode() }
         )
 
         btnChangeUsername.setOnClickListener { showEditMode() }
@@ -108,11 +107,13 @@ class Friends : Fragment() {
                     firebaseRepository.updateUsername(
                         username = newUsername,
                         onSuccess = {
+                            if (!isAdded) return@updateUsername
                             btnSetUsername.isEnabled = true
                             hideKeyboard()
                             showDisplayMode(newUsername)
                         },
                         onError = {
+                            if (!isAdded) return@updateUsername
                             usernameStatusText.text = "Save failed: ${it.message}"
                             usernameStatusText.setTextColor(resources.getColor(android.R.color.holo_red_dark, null))
                             usernameStatusText.visibility = View.VISIBLE
@@ -129,28 +130,6 @@ class Friends : Fragment() {
             )
         }
 
-        // ── Add friend ───────────────────────────────────────────────────────
-
-        btnSendFriendRequest.setOnClickListener {
-            val targetUsername = inputFriendUsername.text.toString().trim()
-            if (targetUsername.isEmpty()) {
-                Toast.makeText(requireContext(), "Please enter a username.", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            firebaseRepository.sendFriendRequestByUsername(
-                targetUsername = targetUsername,
-                onSuccess = {
-                    Toast.makeText(requireContext(), "Friend request sent.", Toast.LENGTH_SHORT).show()
-                    inputFriendUsername.setText("")
-                    hideKeyboard()
-                    loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
-                },
-                onError = {
-                    Toast.makeText(requireContext(), it.message ?: "Failed to send request.", Toast.LENGTH_SHORT).show()
-                }
-            )
-        }
-
         // ── Remove friend ─────────────────────────────────────────────────────
 
         btnRemoveFriend.setOnClickListener {
@@ -162,12 +141,14 @@ class Friends : Fragment() {
             firebaseRepository.removeFriendByUsername(
                 targetUsername = targetUsername,
                 onSuccess = {
+                    if (!isAdded) return@removeFriendByUsername
                     Toast.makeText(requireContext(), "Friend removed.", Toast.LENGTH_SHORT).show()
                     inputRemoveFriendUsername.setText("")
                     hideKeyboard()
                     loadFriendsComparison(tvFriendsComparison)
                 },
                 onError = {
+                    if (!isAdded) return@removeFriendByUsername
                     Toast.makeText(requireContext(), it.message ?: "Failed to remove friend.", Toast.LENGTH_SHORT).show()
                 }
             )
@@ -189,6 +170,7 @@ class Friends : Fragment() {
     ) {
         firebaseRepository.loadIncomingFriendRequests(
             onSuccess = { requests ->
+                if (!isAdded) return@loadIncomingFriendRequests
                 if (requests.isEmpty()) {
                     tvIncomingRequests.text = "No pending requests"
                     tvIncomingRequests.setOnClickListener(null)
@@ -205,11 +187,13 @@ class Friends : Fragment() {
                         firebaseRepository.acceptFriendRequest(
                             request = firstRequest,
                             onSuccess = {
+                                if (!isAdded) return@acceptFriendRequest
                                 Toast.makeText(requireContext(), "Friend request accepted.", Toast.LENGTH_SHORT).show()
                                 loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
                                 loadFriendsComparison(tvFriendsComparison)
                             },
                             onError = {
+                                if (!isAdded) return@acceptFriendRequest
                                 Toast.makeText(requireContext(), it.message ?: "Failed to accept.", Toast.LENGTH_SHORT).show()
                             }
                         )
@@ -217,6 +201,7 @@ class Friends : Fragment() {
                 }
             },
             onError = {
+                if (!isAdded) return@loadIncomingFriendRequests
                 tvIncomingRequests.text = "Failed to load requests"
                 tvIncomingRequests.setOnClickListener(null)
             }
@@ -227,8 +212,10 @@ class Friends : Fragment() {
     private fun loadFriendsComparison(tvFriendsComparison: TextView) {
         firebaseRepository.loadCurrentUserProfile(
             onSuccess = { currentUserProfile ->
+                if (!isAdded) return@loadCurrentUserProfile
                 firebaseRepository.loadFriends(
                     onSuccess = { friends ->
+                        if (!isAdded) return@loadFriends
                         val combined = mutableListOf<FriendProfile>()
                         currentUserProfile?.let {
                             combined.add(FriendProfile(
@@ -256,10 +243,10 @@ class Friends : Fragment() {
                             }
                         }
                     },
-                    onError = { tvFriendsComparison.text = "Failed to load friends" }
+                    onError = { if (isAdded) tvFriendsComparison.text = "Failed to load friends" }
                 )
             },
-            onError = { tvFriendsComparison.text = "Failed to load profile" }
+            onError = { if (isAdded) tvFriendsComparison.text = "Failed to load profile" }
         )
     }
 

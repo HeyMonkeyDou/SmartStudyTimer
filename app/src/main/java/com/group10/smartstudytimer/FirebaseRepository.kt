@@ -123,6 +123,7 @@ class FirebaseRepository(
                                 uid = uid,
                                 displayName = resolvedDisplayName,
                                 email = auth.currentUser?.email.orEmpty(),
+                                username = existingProfile?.username.orEmpty(),
                                 totalFocusMinutes = existingProfile?.totalFocusMinutes ?: 0L,
                                 avatarId = resolvedAvatarId,
                                 bestFocusScore = existingProfile?.bestFocusScore ?: 0L,
