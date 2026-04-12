@@ -196,14 +196,12 @@
                         app:cardBackgroundColor="#ffffff"
                         app:strokeColor="@android:color/transparent">
 
-                        <TextView
-                            android:id="@+id/tvFriendsComparison"
+                        <LinearLayout
+                            android:id="@+id/containerFriendsComparison"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="No friends yet"
-                            android:textSize="14sp"
-                            android:gravity="center_vertical|start"
-                            android:padding="16dp"/>
+                            android:orientation="vertical"
+                            android:paddingVertical="8dp" />
 
                     </com.google.android.material.card.MaterialCardView>
 

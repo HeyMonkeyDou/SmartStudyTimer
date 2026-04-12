@@ -237,13 +237,12 @@
                     app:cardBackgroundColor="#ffffff"
                     app:strokeColor="@android:color/transparent">
 
-                    <TextView
-                        android:id="@+id/tvGlobalComparison"
+                    <LinearLayout
+                        android:id="@+id/containerGlobalLeaderboard"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textSize="14sp"
-                        android:gravity="center_vertical|start"
-                        android:padding="16dp" />
+                        android:orientation="vertical"
+                        android:paddingVertical="8dp" />
 
                 </com.google.android.material.card.MaterialCardView>
 

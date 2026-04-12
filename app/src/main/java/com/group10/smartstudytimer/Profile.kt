@@ -135,7 +135,7 @@ class Profile : Fragment() {
         }
 
         // Leaderboard
-        val tvGlobalComparison = view.findViewById<TextView>(R.id.tvGlobalComparison)
+        val globalLeaderboardContainer = view.findViewById<LinearLayout>(R.id.containerGlobalLeaderboard)
 
         repo.loadLeaderboard(
             onSuccess = { allUsers ->
@@ -151,10 +151,10 @@ class Profile : Fragment() {
                     )
                 }
 
-                tvGlobalComparison.text = resultText.toString()
+                renderGlobalLeaderboard(globalLeaderboardContainer, allUsers)
             },
             onError = {
-                tvGlobalComparison.text = "Failed to load leaderboard"
+                showLeaderboardError(globalLeaderboardContainer, "Failed to load leaderboard")
             }
         )
 
@@ -199,6 +199,82 @@ class Profile : Fragment() {
         return "Study ${formatStudyMinutes(item.studyMinutes)}   " +
             "Breaks ${item.interruptionCount}   " +
             "Interrupted ${formatInterruptedSeconds(item.interruptedSeconds)}"
+    }
+
+    private fun renderGlobalLeaderboard(
+        container: LinearLayout,
+        entries: List<RankedLeaderboardEntry>
+    ) {
+        container.removeAllViews()
+        if (entries.isEmpty()) {
+            showLeaderboardError(container, "No leaderboard data yet")
+            return
+        }
+
+        val inflater = LayoutInflater.from(requireContext())
+        entries.forEach { entry ->
+            val itemView = inflater.inflate(R.layout.item_leaderboard_entry, container, false)
+            itemView.findViewById<TextView>(R.id.tvLeaderboardRank).text = entry.rank.toString()
+            itemView.findViewById<ImageView>(R.id.ivLeaderboardAvatar)
+                .setImageResource(AvatarAssets.getAvatarResId(entry.avatarId))
+            val label = entry.username.ifBlank { entry.displayName }.ifBlank { "User ${entry.rank}" }
+            itemView.findViewById<TextView>(R.id.tvLeaderboardName).text = label
+            itemView.findViewById<TextView>(R.id.tvLeaderboardScore).text = "Score ${entry.score}"
+            itemView.findViewById<TextView>(R.id.tvLeaderboardMinutes).text =
+                formatStudyMinutes(entry.totalFocusMinutes)
+            bindLeaderboardLevel(
+                userId = entry.userId,
+                displayName = label,
+                badgeView = itemView.findViewById(R.id.ivLeaderboardBadge),
+                levelView = itemView.findViewById(R.id.tvLeaderboardLevel)
+            )
+            container.addView(itemView)
+        }
+    }
+
+    private fun bindLeaderboardLevel(
+        userId: String,
+        displayName: String,
+        badgeView: ImageView,
+        levelView: TextView
+    ) {
+        badgeView.setImageResource(R.drawable.badge_explorer)
+        levelView.text = "Explorer"
+        levelView.setTextColor(Color.parseColor("#5F6368"))
+
+        firebaseRepository.loadStudySessions(
+            uid = userId,
+            onSuccess = { sessions ->
+                if (!isAdded) return@loadStudySessions
+                val history = StatisticsAggregator.buildDailyScoreRecords(sessions.orEmpty()).map { record ->
+                    DailyScoreHistoryEntry(
+                        date = record.date,
+                        score = record.focusScore,
+                        studyMinutes = record.studyMinutes,
+                        interruptionCount = record.interruptionCount,
+                        interruptedSeconds = record.interruptedSeconds
+                    )
+                }
+                val streakLevel = StudyStreakLevels.resolve(history)
+                badgeView.setImageResource(streakLevel.badgeResId)
+                badgeView.contentDescription = "$displayName ${streakLevel.label} level"
+                levelView.text = streakLevel.label
+            },
+            onError = {
+                if (!isAdded) return@loadStudySessions
+            }
+        )
+    }
+
+    private fun showLeaderboardError(container: LinearLayout, message: String) {
+        container.removeAllViews()
+        val textView = TextView(requireContext()).apply {
+            text = message
+            textSize = 14f
+            setTextColor(Color.parseColor("#888888"))
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+        }
+        container.addView(textView)
     }
 
     private fun formatStudyMinutes(minutes: Long): String {

@@ -57,11 +57,13 @@ class ProfileRepository(
                             rank = index + 1,
                             userId = entry.uid,
                             displayName = entry.displayName,
+                            username = entry.username,
                             avatarId = AvatarAssets.resolveAvatarId(
                                 userId = entry.uid,
                                 avatarId = entry.avatarId
                             ),
-                            score = entry.bestFocusScore
+                            score = entry.bestFocusScore,
+                            totalFocusMinutes = entry.totalFocusMinutes
                         )
                     }
                 )
