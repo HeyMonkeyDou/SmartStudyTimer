@@ -573,11 +573,14 @@ class FirebaseRepository(
             onSuccess = { uid ->
                 firestore.collection(USERS_COLLECTION)
                     .document(uid)
-                    .update(mapOf(
-                        "username" to username,
-                        "displayName" to username,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    ))
+                    .set(
+                        mapOf(
+                            "username" to username,
+                            "displayName" to username,
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        ),
+                        com.google.firebase.firestore.SetOptions.merge()
+                    )
                     .addOnSuccessListener { onSuccess() }
                     .addOnFailureListener { onError(it) }
             },

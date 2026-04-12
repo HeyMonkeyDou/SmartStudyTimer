@@ -48,6 +48,14 @@ class AuthActivity : AppCompatActivity() {
         signInButton = findViewById(R.id.googleSignInButton)
 
         signInButton.setOnClickListener { launchGoogleSignIn() }
+
+        findViewById<android.widget.Button>(R.id.registerAccountButton).setOnClickListener {
+            startActivity(Intent(this, RegisterActivity::class.java))
+        }
+
+        findViewById<android.widget.Button>(R.id.emailSignInButton).setOnClickListener {
+            startActivity(Intent(this, EmailLoginActivity::class.java))
+        }
     }
 
     override fun onStart() {
