@@ -41,6 +41,13 @@ class DistractionDetectorService : Service() {
         // Set to true by this service when a distraction is detected.
         // Home fragment reads and resets this flag in onResume().
         @Volatile var distractionDetectedByService = false
+        @Volatile private var interruptionStartedAtEpochMillis: Long? = null
+
+        fun consumeInterruptionDurationMillis(resumedAtEpochMillis: Long = System.currentTimeMillis()): Long {
+            val startedAt = interruptionStartedAtEpochMillis ?: return 0L
+            interruptionStartedAtEpochMillis = null
+            return (resumedAtEpochMillis - startedAt).coerceAtLeast(0L)
+        }
     }
 
     private val pollRunnable = object : Runnable {
@@ -61,6 +68,7 @@ class DistractionDetectorService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 lastCheckedTime = System.currentTimeMillis()
+                interruptionStartedAtEpochMillis = null
                 val notification = buildNotification("Study session running", "")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
@@ -82,6 +90,9 @@ class DistractionDetectorService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(pollRunnable)
+        if (!distractionDetectedByService) {
+            interruptionStartedAtEpochMillis = null
+        }
         hideOverlay()
     }
 
@@ -123,6 +134,7 @@ class DistractionDetectorService : Service() {
     private fun onOtherAppDetected() {
         // Stop polling; we'll restart it after the user returns.
         handler.removeCallbacks(pollRunnable)
+        interruptionStartedAtEpochMillis = System.currentTimeMillis()
 
         if (Settings.canDrawOverlays(this)) {
             showOverlay()

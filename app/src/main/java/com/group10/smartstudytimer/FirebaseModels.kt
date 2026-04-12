@@ -54,7 +54,7 @@ data class DailyStatisticsRecord(
     val date: String = "",
     val studyMinutes: Long = 0,
     val interruptionCount: Long = 0,
-    val interruptedMinutes: Long = 0,
+    val interruptedSeconds: Long = 0,
     val completedSessions: Long = 0,
     val focusScore: Long = 0
 )
@@ -65,7 +65,7 @@ data class StudyStatistics(
     val focusScore: Long = 0,
     val todayStudyMinutes: Long = 0,
     val todayInterruptionCount: Long = 0,
-    val todayInterruptedMinutes: Long = 0,
+    val todayInterruptedSeconds: Long = 0,
     val totalCompletedSessions: Long = 0,
     val thisWeekCompletedSessions: Long = 0,
     val calendarMonth: String = "",
@@ -109,7 +109,7 @@ internal fun StudySessionRecord.toFirestoreMap(): HashMap<String, Any> {
         "endedAtTimestamp" to Timestamp(Date(endedAtEpochMillis)),
         "studyMinutes" to studyMinutes,
         "interruptionCount" to interruptionCount,
-        "interruptedMinutes" to interruptedMinutes,
+        "interruptedSeconds" to interruptedSeconds,
         "completedSessions" to completedSessions,
         "status" to status.name,
         "mode" to mode.name,
@@ -123,7 +123,8 @@ internal fun DocumentSnapshot.toStudySessionRecord(): StudySessionRecord {
         endedAtEpochMillis = getLong("endedAtEpochMillis") ?: 0,
         studyMinutes = getLong("studyMinutes") ?: 0,
         interruptionCount = getLong("interruptionCount") ?: 0,
-        interruptedMinutes = getLong("interruptedMinutes") ?: 0,
+        interruptedSeconds = getLong("interruptedSeconds")
+            ?: ((getLong("interruptedMinutes") ?: 0) * 60),
         completedSessions = getLong("completedSessions") ?: 0,
         status = runCatching {
             StudySessionStatus.valueOf(getString("status") ?: StudySessionStatus.COMPLETED.name)

@@ -69,7 +69,7 @@ class Statistic : Fragment() {
 
         // Interruptions
         tvInterruptionCount.text = "Interruption count: ${daily.interruptionCount}"
-        tvInterruptedTime.text = "Interrupted time: ${daily.interruptedMinutes} min"
+        tvInterruptedTime.text = "Interrupted time: ${formatMinutesSeconds(daily.interruptedSeconds)}"
 
         // Total sessions (all time)
         val totalCompleted = allSessions.sumOf { it.completedSessions }
@@ -80,5 +80,11 @@ class Statistic : Fragment() {
         val month = date.month
         val year = date.year
         tvMonthlySessions.text = "$month $year completed session: $monthlyCompleted"
+    }
+
+    private fun formatMinutesSeconds(totalSeconds: Long): String {
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return "${minutes}min${seconds}sec"
     }
 }

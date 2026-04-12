@@ -66,11 +66,17 @@ class Monitor : Fragment() {
 
         // Mapping data model → UI meaning
         val pickupCount = todayStats.interruptionCount
-        val phoneUseMinutes = todayStats.interruptedMinutes
+        val phoneUseSeconds = todayStats.interruptedSeconds
 
         tvPickupCount.text = "Pickup Count: $pickupCount"
-        tvPhoneUseCount.text = "Phone-use Time: $phoneUseMinutes min"
+        tvPhoneUseCount.text = "Phone-use Time: ${formatMinutesSeconds(phoneUseSeconds)}"
 
         return view
+    }
+
+    private fun formatMinutesSeconds(totalSeconds: Long): String {
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return "${minutes}min${seconds}sec"
     }
 }

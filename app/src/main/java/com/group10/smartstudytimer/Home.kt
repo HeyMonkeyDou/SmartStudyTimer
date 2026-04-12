@@ -80,7 +80,6 @@ class Home : Fragment(), SensorEventListener {
     private lateinit var speechRecognizer: SpeechRecognizer
 
     private var interruptedTimeInMillis: Long = 0
-    private val interruptionPenaltyPerEvent: Long = 5 * 1000L
 
 
     override fun onCreateView(
@@ -132,7 +131,9 @@ class Home : Fragment(), SensorEventListener {
         // Check if the background service detected an app switch while we were away.
         if (DistractionDetectorService.distractionDetectedByService) {
             DistractionDetectorService.distractionDetectedByService = false
-            handleServiceDetectedDistraction()
+            handleServiceDetectedDistraction(
+                DistractionDetectorService.consumeInterruptionDurationMillis()
+            )
         }
     }
 
@@ -328,7 +329,7 @@ class Home : Fragment(), SensorEventListener {
             StudySessionRecord(
                 studyMinutes = studyMinutes,
                 interruptionCount = distractionCount.toLong(),
-                interruptedMinutes = interruptedTimeInMillis / 60000L,
+                interruptedSeconds = interruptedTimeInMillis / 1000L,
                 completedSessions = if (isPomodoroMode) totalRounds.toLong() else 1L,
                 status = StudySessionStatus.COMPLETED,
                 mode = if (isPomodoroMode) StudySessionMode.POMODORO else StudySessionMode.NORMAL
@@ -346,11 +347,11 @@ class Home : Fragment(), SensorEventListener {
         updateUIState()
     }
 
-    fun registerDistraction() {
+    fun registerDistraction(interruptionDurationMillis: Long = 0L) {
         if (!isPomodoroMode || sessionInvalidated) return
 
         distractionCount++
-        interruptedTimeInMillis += interruptionPenaltyPerEvent
+        interruptedTimeInMillis += interruptionDurationMillis.coerceAtLeast(0L)
 
         if (distractionCount >= distractionLimit) {
             sessionInvalidated = true
@@ -470,13 +471,14 @@ class Home : Fragment(), SensorEventListener {
     }
 
     private fun showMovementWarning() {
+        val interruptionStartedAt = System.currentTimeMillis()
         pauseTimer()
         AlertDialog.Builder(requireContext())
             .setTitle("⚠️ Warning：Movement detected")
             .setMessage("Please put down your phone, stay focused! Distraction will be recorded")
             .setCancelable(false)
             .setPositiveButton("Done") { dialog, _ ->
-                registerDistraction()
+                registerDistraction(System.currentTimeMillis() - interruptionStartedAt)
                 if (!sessionInvalidated) {
                     startTimer()
                 }
@@ -487,9 +489,9 @@ class Home : Fragment(), SensorEventListener {
 
     // ── App-switch detection via DistractionDetectorService ──────────────────
 
-    private fun handleServiceDetectedDistraction() {
+    private fun handleServiceDetectedDistraction(interruptionDurationMillis: Long) {
         if (!isPomodoroMode || sessionInvalidated) return
-        registerDistraction()
+        registerDistraction(interruptionDurationMillis)
         // Restart service polling for the next potential distraction
         if (!sessionInvalidated) {
             startDistractionService()
