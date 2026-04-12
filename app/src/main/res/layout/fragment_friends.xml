@@ -24,76 +24,30 @@
             android:orientation="vertical"
             android:padding="24dp">
 
-            <!-- ── My Username ── -->
+            <!-- ── Add Friend ── -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:text="My Username"
+                android:text="Add Friend by Username"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
-            <!-- Display row: username text + Change button -->
-            <LinearLayout
+            <EditText
+                android:id="@+id/inputFriendUsername"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:hint="Enter friend's username"
+                android:inputType="textNoSuggestions" />
 
-                <TextView
-                    android:id="@+id/tvMyUsername"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="(no username set)"
-                    android:textSize="16sp" />
-
-                <Button
-                    android:id="@+id/btnChangeUsername"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Edit"
-                    android:visibility="gone" />
-
-            </LinearLayout>
-
-            <!-- Edit row: input + Save (shown when setting / changing) -->
-            <LinearLayout
-                android:id="@+id/usernameEditRow"
+            <Button
+                android:id="@+id/btnSendFriendRequest"
+                style="@style/Widget.Material3.Button"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal"
-                android:visibility="visible">
-
-                <EditText
-                    android:id="@+id/inputNewUsername"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="Set username (3‑20 chars, a‑z 0‑9 _)"
-                    android:inputType="textNoSuggestions"
-                    android:maxLength="20" />
-
-                <Button
-                    android:id="@+id/btnSetUsername"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:text="Save" />
-
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/usernameStatusText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textSize="12sp"
-                android:visibility="gone" />
+                android:layout_height="52dp"
+                android:layout_marginTop="12dp"
+                android:text="Send Friend Request" />
 
             <Button
                 android:id="@+id/btnRefreshProfile"

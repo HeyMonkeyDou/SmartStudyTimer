@@ -27,105 +27,34 @@ class Friends : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Username views
-        val tvMyUsername = view.findViewById<TextView>(R.id.tvMyUsername)
-        val btnChangeUsername = view.findViewById<Button>(R.id.btnChangeUsername)
-        val usernameEditRow = view.findViewById<View>(R.id.usernameEditRow)
-        val inputNewUsername = view.findViewById<EditText>(R.id.inputNewUsername)
-        val btnSetUsername = view.findViewById<Button>(R.id.btnSetUsername)
-        val usernameStatusText = view.findViewById<TextView>(R.id.usernameStatusText)
-
-        // Friend views
+        val inputFriendUsername = view.findViewById<EditText>(R.id.inputFriendUsername)
+        val btnSendFriendRequest = view.findViewById<Button>(R.id.btnSendFriendRequest)
         val btnRefreshProfile = view.findViewById<Button>(R.id.btnRefreshProfile)
         val tvIncomingRequests = view.findViewById<TextView>(R.id.tvIncomingRequests)
         val tvFriendsComparison = view.findViewById<TextView>(R.id.tvFriendsComparison)
         val inputRemoveFriendUsername = view.findViewById<EditText>(R.id.inputRemoveFriendUsername)
         val btnRemoveFriend = view.findViewById<Button>(R.id.btnRemoveFriend)
 
-        // ── Username helpers ──────────────────────────────────────────────────
+        // ── Add friend ───────────────────────────────────────────────────────
 
-        fun showDisplayMode(username: String) {
-            tvMyUsername.text = username.ifBlank { "(no username set)" }
-            usernameEditRow.visibility = View.GONE
-            btnChangeUsername.visibility = if (username.isNotBlank()) View.VISIBLE else View.GONE
-            usernameStatusText.visibility = View.GONE
-        }
-
-        fun showEditMode() {
-            usernameEditRow.visibility = View.VISIBLE
-            btnChangeUsername.visibility = View.GONE
-            usernameStatusText.visibility = View.GONE
-        }
-
-        // Load current username
-        firebaseRepository.loadCurrentUserProfile(
-            onSuccess = { profile ->
-                if (!isAdded) return@loadCurrentUserProfile
-                val current = profile?.username.orEmpty()
-                if (current.isNotBlank()) {
-                    inputNewUsername.setText(current)
-                    showDisplayMode(current)
-                } else {
-                    showEditMode()
-                }
-            },
-            onError = { if (isAdded) showEditMode() }
-        )
-
-        btnChangeUsername.setOnClickListener { showEditMode() }
-
-        btnSetUsername.setOnClickListener {
-            val newUsername = inputNewUsername.text.toString().trim()
-            if (newUsername.length < 3) {
-                usernameStatusText.text = "Username must be at least 3 characters."
-                usernameStatusText.setTextColor(resources.getColor(android.R.color.holo_red_dark, null))
-                usernameStatusText.visibility = View.VISIBLE
+        btnSendFriendRequest.setOnClickListener {
+            val targetUsername = inputFriendUsername.text.toString().trim()
+            if (targetUsername.isEmpty()) {
+                Toast.makeText(requireContext(), "Please enter a username.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            if (!newUsername.matches(Regex("[a-zA-Z0-9_]+"))) {
-                usernameStatusText.text = "Letters, numbers and _ only."
-                usernameStatusText.setTextColor(resources.getColor(android.R.color.holo_red_dark, null))
-                usernameStatusText.visibility = View.VISIBLE
-                return@setOnClickListener
-            }
-
-            btnSetUsername.isEnabled = false
-            usernameStatusText.text = "Checking…"
-            usernameStatusText.setTextColor(resources.getColor(android.R.color.darker_gray, null))
-            usernameStatusText.visibility = View.VISIBLE
-
-            val currentDisplayed = tvMyUsername.text.toString()
-            firebaseRepository.isUsernameAvailable(
-                username = newUsername,
-                onResult = { available ->
-                    if (!available && newUsername != currentDisplayed) {
-                        usernameStatusText.text = "Username already taken."
-                        usernameStatusText.setTextColor(resources.getColor(android.R.color.holo_red_dark, null))
-                        btnSetUsername.isEnabled = true
-                        return@isUsernameAvailable
-                    }
-                    firebaseRepository.updateUsername(
-                        username = newUsername,
-                        onSuccess = {
-                            if (!isAdded) return@updateUsername
-                            btnSetUsername.isEnabled = true
-                            hideKeyboard()
-                            showDisplayMode(newUsername)
-                        },
-                        onError = {
-                            if (!isAdded) return@updateUsername
-                            usernameStatusText.text = "Save failed: ${it.message}"
-                            usernameStatusText.setTextColor(resources.getColor(android.R.color.holo_red_dark, null))
-                            usernameStatusText.visibility = View.VISIBLE
-                            btnSetUsername.isEnabled = true
-                        }
-                    )
+            firebaseRepository.sendFriendRequestByUsername(
+                targetUsername = targetUsername,
+                onSuccess = {
+                    if (!isAdded) return@sendFriendRequestByUsername
+                    Toast.makeText(requireContext(), "Friend request sent.", Toast.LENGTH_SHORT).show()
+                    inputFriendUsername.setText("")
+                    hideKeyboard()
+                    loadIncomingRequests(tvIncomingRequests, tvFriendsComparison)
                 },
                 onError = {
-                    usernameStatusText.text = "Error: ${it.message}"
-                    usernameStatusText.setTextColor(resources.getColor(android.R.color.holo_red_dark, null))
-                    usernameStatusText.visibility = View.VISIBLE
-                    btnSetUsername.isEnabled = true
+                    if (!isAdded) return@sendFriendRequestByUsername
+                    Toast.makeText(requireContext(), it.message ?: "Failed to send request.", Toast.LENGTH_SHORT).show()
                 }
             )
         }
