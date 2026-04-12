@@ -73,7 +73,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
         sessionNoteInput = findViewById(R.id.sessionNoteInput)
         sessionsInput = findViewById(R.id.sessionsInput)
         setupSessionSelectors()
-        renderAvatarPreview(AvatarAssets.CAT)
+        renderAvatarPreview(AvatarAssets.defaultAvatarId(this))
 
         findViewById<Button>(R.id.signInButton).setOnClickListener { signIn() }
         findViewById<Button>(R.id.saveUserButton).setOnClickListener { saveUser() }
@@ -534,7 +534,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
             userId = uidText.text.toString().removePrefix("uid: ").trim(),
             avatarId = avatarId
         )
-        avatarPreviewImage.setImageResource(AvatarAssets.getAvatarResId(resolvedAvatarId))
+        AvatarAssets.bindAvatar(avatarPreviewImage, resolvedAvatarId)
     }
 
 }

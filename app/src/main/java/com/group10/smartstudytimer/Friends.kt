@@ -219,8 +219,10 @@ class Friends : Fragment() {
                 val displayName = friend.nickname.ifBlank { friend.username.ifBlank { friend.displayName } }
 
                 itemView.findViewById<TextView>(R.id.tvLeaderboardRank).text = (index + 1).toString()
-                itemView.findViewById<ImageView>(R.id.ivLeaderboardAvatar)
-                    .setImageResource(AvatarAssets.getAvatarResId(friend.avatarId))
+                AvatarAssets.bindAvatar(
+                    itemView.findViewById(R.id.ivLeaderboardAvatar),
+                    friend.avatarId
+                )
                 itemView.findViewById<TextView>(R.id.tvLeaderboardName).text = displayName
                 itemView.findViewById<TextView>(R.id.tvLeaderboardScore).text = "Score ${friend.bestFocusScore}"
                 itemView.findViewById<TextView>(R.id.tvLeaderboardMinutes).text =

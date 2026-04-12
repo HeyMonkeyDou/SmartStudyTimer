@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 
@@ -40,7 +41,7 @@ class Profile : Fragment() {
             currentProfileHeader = profile
 
             val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-            avatarView.setImageResource(AvatarAssets.getAvatarResId(profile.avatarId))
+            AvatarAssets.bindAvatar(avatarView, profile.avatarId)
 
             view.findViewById<TextView>(R.id.tvUsername).text =
                 profile.displayName.ifBlank { "No name set" }
@@ -65,7 +66,7 @@ class Profile : Fragment() {
             val initialProfile = currentProfileHeader
             showEditProfileDialog(
                 initialDisplayName = initialProfile?.displayName.orEmpty(),
-                initialAvatarId = initialProfile?.avatarId ?: AvatarAssets.CAT,
+                initialAvatarId = initialProfile?.avatarId ?: AvatarAssets.defaultAvatarId(requireContext()),
                 onSave = { displayName, avatarId ->
                     firebaseRepository.updateCurrentUserProfileSettings(
                         displayName = displayName,
@@ -215,8 +216,10 @@ class Profile : Fragment() {
         entries.forEach { entry ->
             val itemView = inflater.inflate(R.layout.item_leaderboard_entry, container, false)
             itemView.findViewById<TextView>(R.id.tvLeaderboardRank).text = entry.rank.toString()
-            itemView.findViewById<ImageView>(R.id.ivLeaderboardAvatar)
-                .setImageResource(AvatarAssets.getAvatarResId(entry.avatarId))
+            AvatarAssets.bindAvatar(
+                itemView.findViewById(R.id.ivLeaderboardAvatar),
+                entry.avatarId
+            )
             val label = entry.username.ifBlank { entry.displayName }.ifBlank { "User ${entry.rank}" }
             itemView.findViewById<TextView>(R.id.tvLeaderboardName).text = label
             itemView.findViewById<TextView>(R.id.tvLeaderboardScore).text = "Score ${entry.score}"
@@ -304,24 +307,85 @@ class Profile : Fragment() {
     ) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_edit_profile, null)
         val displayNameInput = dialogView.findViewById<TextInputEditText>(R.id.etDisplayName)
-        val avatarCards = linkedMapOf(
-            AvatarAssets.CAT to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarCat),
-            AvatarAssets.CHICKEN to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarChicken),
-            AvatarAssets.PANDA to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarPanda),
-            AvatarAssets.RABBIT to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarRabbit)
-        )
+        val avatarOptionsContainer = dialogView.findViewById<LinearLayout>(R.id.containerAvatarOptions)
+        val avatarIds = AvatarAssets.listAvatarIds(requireContext())
 
         displayNameInput.setText(initialDisplayName)
+        displayNameInput.setSelection(displayNameInput.text?.length ?: 0)
 
-        var selectedAvatarId = initialAvatarId.takeIf { it in AvatarAssets.avatarIds } ?: AvatarAssets.CAT
+        var selectedAvatarId = initialAvatarId.takeIf { it in avatarIds }
+            ?: AvatarAssets.defaultAvatarId(requireContext())
+        val avatarCards = linkedMapOf<String, MaterialCardView>()
+        val surfaceColor = MaterialColors.getColor(dialogView, com.google.android.material.R.attr.colorSurface)
+        val selectedContainerColor = MaterialColors.getColor(
+            dialogView,
+            com.google.android.material.R.attr.colorSecondaryContainer
+        )
+        val outlineColor = MaterialColors.getColor(
+            dialogView,
+            com.google.android.material.R.attr.colorOutlineVariant
+        )
+        val primaryColor = MaterialColors.getColor(dialogView, androidx.appcompat.R.attr.colorPrimary)
+
+        avatarIds.chunked(3).forEachIndexed { rowIndex, rowAvatarIds ->
+            val rowView = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = if (rowIndex == 0) 0 else dpToPx(12)
+                }
+            }
+
+            rowAvatarIds.forEachIndexed { index, avatarId ->
+                val card = layoutInflater.inflate(
+                    R.layout.item_avatar_option,
+                    rowView,
+                    false
+                ) as MaterialCardView
+                card.layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    dpToPx(88),
+                    1f
+                ).apply {
+                    when (index) {
+                        0 -> marginEnd = dpToPx(6)
+                        rowAvatarIds.lastIndex -> marginStart = dpToPx(6)
+                        else -> {
+                            marginStart = dpToPx(6)
+                            marginEnd = dpToPx(6)
+                        }
+                    }
+                }
+                card.isCheckable = true
+                card.strokeColor = outlineColor
+                AvatarAssets.bindAvatar(card.findViewById(R.id.ivAvatarOption), avatarId)
+                card.contentDescription = "$avatarId avatar"
+                avatarCards[avatarId] = card
+                rowView.addView(card)
+            }
+
+            repeat(3 - rowAvatarIds.size) {
+                rowView.addView(
+                    View(requireContext()),
+                    LinearLayout.LayoutParams(0, 0, 1f).apply {
+                        if (rowAvatarIds.isNotEmpty()) {
+                            marginStart = dpToPx(6)
+                        }
+                    }
+                )
+            }
+            avatarOptionsContainer.addView(rowView)
+        }
 
         fun updateAvatarSelection() {
             avatarCards.forEach { (avatarId, card) ->
                 val isSelected = avatarId == selectedAvatarId
-                card.strokeWidth = if (isSelected) dpToPx(3) else dpToPx(1)
-                card.setCardBackgroundColor(
-                    if (isSelected) Color.parseColor("#E8DEF8") else Color.WHITE
-                )
+                card.isChecked = isSelected
+                card.strokeWidth = if (isSelected) dpToPx(2) else dpToPx(1)
+                card.strokeColor = if (isSelected) primaryColor else outlineColor
+                card.setCardBackgroundColor(if (isSelected) selectedContainerColor else surfaceColor)
             }
         }
 
@@ -334,7 +398,7 @@ class Profile : Fragment() {
         updateAvatarSelection()
 
         val dialog = MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Edit Profile")
+            .setTitle("Edit profile")
             .setView(dialogView)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Save", null)

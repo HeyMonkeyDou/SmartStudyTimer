@@ -83,7 +83,7 @@ class FriendListFragment : Fragment() {
             val tvLevel = itemView.findViewById<TextView>(R.id.tvFriendLevel)
             val tvUsername = itemView.findViewById<TextView>(R.id.tvFriendUsername)
 
-            ivAvatar.setImageResource(AvatarAssets.getAvatarResId(friend.avatarId))
+            AvatarAssets.bindAvatar(ivAvatar, friend.avatarId)
 
             val displayName = friend.nickname.ifBlank { friend.username.ifBlank { friend.displayName } }
             tvName.text = displayName

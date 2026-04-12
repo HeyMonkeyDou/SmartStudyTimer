@@ -2,7 +2,6 @@ package com.group10.smartstudytimer
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
@@ -94,10 +93,7 @@ object BestRecordShareImageGenerator {
     }
 
     private fun drawAvatar(context: Context, canvas: Canvas, avatarId: String) {
-        val avatarBitmap = BitmapFactory.decodeResource(
-            context.resources,
-            AvatarAssets.getAvatarResId(avatarId)
-        )
+        val avatarBitmap = AvatarAssets.getAvatarBitmap(context, avatarId)
         val avatarSize = 280f
         val centerX = WIDTH / 2f
         val centerY = 500f
