@@ -32,11 +32,41 @@
                 android:gravity="center">
 
                 <!-- Left: Avatar -->
-                <ImageView
+                <FrameLayout
                     android:layout_width="124dp"
                     android:layout_height="124dp"
-                    android:src="@drawable/cat"
-                    android:layout_marginEnd="6dp"/>
+                    android:layout_marginEnd="6dp">
+
+                    <ImageView
+                        android:id="@+id/ivAvatar"
+                        android:layout_width="124dp"
+                        android:layout_height="124dp"
+                        android:src="@drawable/cat" />
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardLevelBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="top|end"
+                        android:layout_marginTop="4dp"
+                        app:cardBackgroundColor="#1E4DB7"
+                        app:cardCornerRadius="12dp"
+                        app:strokeColor="@android:color/transparent">
+
+                        <TextView
+                            android:id="@+id/tvLevelBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="5dp"
+                            android:text="Starter"
+                            android:textColor="#FFFFFF"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                </FrameLayout>
 
                 <!-- Right: Details -->
                 <LinearLayout

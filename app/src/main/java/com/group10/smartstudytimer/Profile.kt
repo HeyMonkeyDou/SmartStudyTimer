@@ -3,10 +3,12 @@ package com.group10.smartstudytimer
 import android.os.Bundle
 import android.view.*
 import android.widget.Button
-import android.widget.Toast
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
+import com.google.android.material.card.MaterialCardView
 
 class Profile : Fragment() {
 
@@ -21,12 +23,16 @@ class Profile : Fragment() {
         val view = inflater.inflate(R.layout.fragment_profile, container, false)
 
         val repo = ProfileRepository(requireContext())
+        val avatarView = view.findViewById<ImageView>(R.id.ivAvatar)
+        val levelBadgeCard = view.findViewById<MaterialCardView>(R.id.cardLevelBadge)
+        val levelBadgeText = view.findViewById<TextView>(R.id.tvLevelBadge)
 
         // Profile Info
         repo.loadProfileHeader(
             onSuccess = { profile ->
 
                 val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                avatarView.setImageResource(AvatarAssets.getAvatarResId(profile.avatarId))
 
                 view.findViewById<TextView>(R.id.tvUsername).text =
                     profile.displayName ?: "No name set"
@@ -84,6 +90,11 @@ class Profile : Fragment() {
         container.removeAllViews()
 
         val historyList = repo.getDailyScoreHistory()
+        val streakLevel = StudyStreakLevels.resolve(historyList)
+        levelBadgeCard.setCardBackgroundColor(streakLevel.backgroundColor)
+        levelBadgeText.text = streakLevel.label
+        levelBadgeText.setTextColor(streakLevel.textColor)
+        levelBadgeCard.contentDescription = "${streakLevel.label} level, ${streakLevel.streakDays} day streak"
 
         for (item in historyList) {
 
