@@ -1,6 +1,7 @@
 package com.group10.smartstudytimer
 
 import android.content.Context
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -9,6 +10,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -24,8 +26,7 @@ class Friends : Fragment() {
     private lateinit var containerIncomingRequests: LinearLayout
     private lateinit var tvNoRequests: TextView
     private lateinit var tvRequestBadge: TextView
-    private lateinit var tvFriendsComparison: TextView
-    private lateinit var tvNewMessageBanner: TextView
+    private lateinit var containerFriendsComparison: LinearLayout
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -45,10 +46,7 @@ class Friends : Fragment() {
         containerIncomingRequests = view.findViewById(R.id.containerIncomingRequests)
         tvNoRequests = view.findViewById(R.id.tvNoRequests)
         tvRequestBadge = view.findViewById(R.id.tvRequestBadge)
-        tvFriendsComparison = view.findViewById(R.id.tvFriendsComparison)
-        tvNewMessageBanner = view.findViewById(R.id.tvNewMessageBanner)
-
-        // ── Add friend ───────────────────────────────────────────────────────
+        containerFriendsComparison = view.findViewById(R.id.containerFriendsComparison)
 
         btnSendFriendRequest.setOnClickListener {
             val targetUsername = inputFriendUsername.text.toString().trim()
@@ -72,78 +70,20 @@ class Friends : Fragment() {
             )
         }
 
-        // ── My Friends entry ──────────────────────────────────────────────────
-
-        cardViewFriendList.setOnClickListener { openFriendList() }
-
-        // ── New message banner ────────────────────────────────────────────────
-
-        tvNewMessageBanner.setOnClickListener { openFriendList() }
-
-        // ── Pull-to-refresh ───────────────────────────────────────────────────
+        cardViewFriendList.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, FriendListFragment())
+                .addToBackStack("friendList")
+                .commit()
+        }
 
         swipeRefresh.setOnRefreshListener { refresh() }
-
-        // Initial load
         refresh()
-    }
-
-    private fun openFriendList() {
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.fragmentContainer, FriendListFragment())
-            .addToBackStack("friendList")
-            .commit()
     }
 
     private fun refresh() {
         loadIncomingRequests()
         loadFriendsComparison()
-        checkUnreadMessages()
-    }
-
-    private fun checkUnreadMessages() {
-        val currentUid = firebaseRepository.getCurrentUserUid() ?: return
-        val prefs = requireContext().getSharedPreferences("chat_prefs", Context.MODE_PRIVATE)
-
-        firebaseRepository.loadFriends(
-            onSuccess = { friends ->
-                if (!isAdded) return@loadFriends
-                if (friends.isEmpty()) {
-                    tvNewMessageBanner.visibility = View.GONE
-                    return@loadFriends
-                }
-
-                var checked = 0
-                var hasUnread = false
-
-                friends.forEach { friend ->
-                    val chatId = listOf(currentUid, friend.uid).sorted().joinToString("_")
-                    val lastRead = prefs.getLong("last_read_$chatId", 0L)
-
-                    firebaseRepository.getLastChatMessage(
-                        friendUid = friend.uid,
-                        onSuccess = { msg ->
-                            if (msg != null && msg.senderId != currentUid && msg.timestamp > lastRead) {
-                                hasUnread = true
-                            }
-                            checked++
-                            if (checked == friends.size && isAdded) {
-                                tvNewMessageBanner.visibility =
-                                    if (hasUnread) View.VISIBLE else View.GONE
-                            }
-                        },
-                        onError = {
-                            checked++
-                            if (checked == friends.size && isAdded) {
-                                tvNewMessageBanner.visibility =
-                                    if (hasUnread) View.VISIBLE else View.GONE
-                            }
-                        }
-                    )
-                }
-            },
-            onError = { /* silently ignore */ }
-        )
     }
 
     private fun loadIncomingRequests() {
@@ -151,7 +91,6 @@ class Friends : Fragment() {
             onSuccess = { requests ->
                 if (!isAdded) return@loadIncomingFriendRequests
 
-                // Remove all existing request views (keep tvNoRequests)
                 val inflater = LayoutInflater.from(requireContext())
                 containerIncomingRequests.removeAllViews()
 
@@ -166,7 +105,9 @@ class Friends : Fragment() {
 
                     requests.forEach { request ->
                         val itemView = inflater.inflate(
-                            R.layout.item_friend_request, containerIncomingRequests, false
+                            R.layout.item_friend_request,
+                            containerIncomingRequests,
+                            false
                         )
                         itemView.findViewById<TextView>(R.id.tvRequestName).text =
                             request.fromDisplayName.ifBlank { request.fromEmail }
@@ -229,47 +170,133 @@ class Friends : Fragment() {
                         if (!isAdded) return@loadFriends
                         val combined = mutableListOf<FriendProfile>()
                         currentUserProfile?.let {
-                            combined.add(FriendProfile(
-                                uid = it.uid,
-                                displayName = it.displayName,
-                                username = if (it.username.isNotBlank()) "${it.username} (You)" else "(You)",
-                                email = it.email,
-                                avatarId = it.avatarId,
-                                bestFocusScore = it.bestFocusScore,
-                                totalFocusMinutes = it.totalFocusMinutes
-                            ))
+                            combined.add(
+                                FriendProfile(
+                                    uid = it.uid,
+                                    displayName = it.displayName,
+                                    username = if (it.username.isNotBlank()) "${it.username} (You)" else "(You)",
+                                    email = it.email,
+                                    avatarId = it.avatarId,
+                                    bestFocusScore = it.bestFocusScore,
+                                    totalFocusMinutes = it.totalFocusMinutes
+                                )
+                            )
                         }
                         combined.addAll(friends)
-
-                        if (combined.isEmpty()) {
-                            tvFriendsComparison.text = "No friends yet"
-                        } else {
-                            val sorted = combined.sortedByDescending { it.bestFocusScore }
-                            tvFriendsComparison.text = buildString {
-                                append("Friends Leaderboard\n\n")
-                                sorted.forEachIndexed { index, friend ->
-                                    val label = friend.username.ifBlank { friend.displayName }
-                                    append("${index + 1}. $label — Score: ${friend.bestFocusScore}, Minutes: ${friend.totalFocusMinutes}\n")
-                                }
-                            }
-                        }
+                        renderFriendsLeaderboard(combined)
                         swipeRefresh.isRefreshing = false
                     },
                     onError = {
-                        if (isAdded) {
-                            tvFriendsComparison.text = "Failed to load friends"
-                            swipeRefresh.isRefreshing = false
-                        }
+                        if (!isAdded) return@loadFriends
+                        showFriendsLeaderboardMessage("Failed to load friends")
+                        swipeRefresh.isRefreshing = false
                     }
                 )
             },
             onError = {
-                if (isAdded) {
-                    tvFriendsComparison.text = "Failed to load profile"
-                    swipeRefresh.isRefreshing = false
-                }
+                if (!isAdded) return@loadCurrentUserProfile
+                showFriendsLeaderboardMessage("Failed to load profile")
+                swipeRefresh.isRefreshing = false
             }
         )
+    }
+
+    private fun renderFriendsLeaderboard(friends: List<FriendProfile>) {
+        containerFriendsComparison.removeAllViews()
+        if (friends.isEmpty()) {
+            showFriendsLeaderboardMessage("No friends yet")
+            return
+        }
+
+        val inflater = LayoutInflater.from(requireContext())
+        friends.sortedByDescending { it.bestFocusScore }
+            .forEachIndexed { index, friend ->
+                val itemView = inflater.inflate(
+                    R.layout.item_leaderboard_entry,
+                    containerFriendsComparison,
+                    false
+                )
+                val displayName = friend.nickname.ifBlank { friend.username.ifBlank { friend.displayName } }
+
+                itemView.findViewById<TextView>(R.id.tvLeaderboardRank).text = (index + 1).toString()
+                AvatarAssets.bindAvatar(
+                    itemView.findViewById(R.id.ivLeaderboardAvatar),
+                    friend.avatarId
+                )
+                itemView.findViewById<TextView>(R.id.tvLeaderboardName).text = displayName
+                itemView.findViewById<TextView>(R.id.tvLeaderboardScore).text = "Score ${friend.bestFocusScore}"
+                itemView.findViewById<TextView>(R.id.tvLeaderboardMinutes).text =
+                    formatStudyMinutes(friend.totalFocusMinutes)
+
+                bindLeaderboardLevel(
+                    userId = friend.uid,
+                    displayName = displayName,
+                    badgeView = itemView.findViewById(R.id.ivLeaderboardBadge),
+                    levelView = itemView.findViewById(R.id.tvLeaderboardLevel)
+                )
+
+                containerFriendsComparison.addView(itemView)
+            }
+    }
+
+    private fun bindLeaderboardLevel(
+        userId: String,
+        displayName: String,
+        badgeView: ImageView,
+        levelView: TextView
+    ) {
+        badgeView.setImageResource(R.drawable.badge_explorer)
+        levelView.text = "Explorer"
+        levelView.setTextColor(Color.parseColor("#5F6368"))
+
+        firebaseRepository.loadStudySessions(
+            uid = userId,
+            onSuccess = { sessions ->
+                if (!isAdded) return@loadStudySessions
+                val history = StatisticsAggregator.buildDailyScoreRecords(sessions.orEmpty()).map { record ->
+                    DailyScoreHistoryEntry(
+                        date = record.date,
+                        score = record.focusScore,
+                        studyMinutes = record.studyMinutes,
+                        interruptionCount = record.interruptionCount,
+                        interruptedSeconds = record.interruptedSeconds
+                    )
+                }
+                val streakLevel = StudyStreakLevels.resolve(history)
+                badgeView.setImageResource(streakLevel.badgeResId)
+                badgeView.contentDescription = "$displayName ${streakLevel.label} level"
+                levelView.text = streakLevel.label
+            },
+            onError = {
+                if (!isAdded) return@loadStudySessions
+            }
+        )
+    }
+
+    private fun showFriendsLeaderboardMessage(message: String) {
+        containerFriendsComparison.removeAllViews()
+        val textView = TextView(requireContext()).apply {
+            text = message
+            textSize = 14f
+            setTextColor(Color.parseColor("#888888"))
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+        }
+        containerFriendsComparison.addView(textView)
+    }
+
+    private fun formatStudyMinutes(minutes: Long): String {
+        val hours = minutes / 60
+        val remainingMinutes = minutes % 60
+        return when {
+            hours > 0 && remainingMinutes > 0 -> "${hours}h ${remainingMinutes}m"
+            hours > 0 -> "${hours}h"
+            else -> "${remainingMinutes}m"
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        val density = resources.displayMetrics.density
+        return (dp * density).toInt()
     }
 
     private fun hideKeyboard() {

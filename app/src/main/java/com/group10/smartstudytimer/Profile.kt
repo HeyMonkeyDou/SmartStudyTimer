@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 
@@ -29,7 +30,7 @@ class Profile : Fragment() {
 
         val repo = ProfileRepository(requireContext())
         val avatarView = view.findViewById<ImageView>(R.id.ivAvatar)
-        val levelBadgeCard = view.findViewById<MaterialCardView>(R.id.cardLevelBadge)
+        val levelBadgeView = view.findViewById<ImageView>(R.id.ivLevelBadge)
         val levelBadgeText = view.findViewById<TextView>(R.id.tvLevelBadge)
         val signOutButton = view.findViewById<Button>(R.id.signOutButton)
         val editProfileButton = view.findViewById<Button>(R.id.btnEditProfile)
@@ -40,7 +41,7 @@ class Profile : Fragment() {
             currentProfileHeader = profile
 
             val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-            avatarView.setImageResource(AvatarAssets.getAvatarResId(profile.avatarId))
+            AvatarAssets.bindAvatar(avatarView, profile.avatarId)
 
             view.findViewById<TextView>(R.id.tvUsername).text =
                 profile.displayName.ifBlank { "No name set" }
@@ -65,7 +66,7 @@ class Profile : Fragment() {
             val initialProfile = currentProfileHeader
             showEditProfileDialog(
                 initialDisplayName = initialProfile?.displayName.orEmpty(),
-                initialAvatarId = initialProfile?.avatarId ?: AvatarAssets.CAT,
+                initialAvatarId = initialProfile?.avatarId ?: AvatarAssets.defaultAvatarId(requireContext()),
                 onSave = { displayName, avatarId ->
                     firebaseRepository.updateCurrentUserProfileSettings(
                         displayName = displayName,
@@ -135,7 +136,7 @@ class Profile : Fragment() {
         }
 
         // Leaderboard
-        val tvGlobalComparison = view.findViewById<TextView>(R.id.tvGlobalComparison)
+        val globalLeaderboardContainer = view.findViewById<LinearLayout>(R.id.containerGlobalLeaderboard)
 
         repo.loadLeaderboard(
             onSuccess = { allUsers ->
@@ -151,10 +152,10 @@ class Profile : Fragment() {
                     )
                 }
 
-                tvGlobalComparison.text = resultText.toString()
+                renderGlobalLeaderboard(globalLeaderboardContainer, allUsers)
             },
             onError = {
-                tvGlobalComparison.text = "Failed to load leaderboard"
+                showLeaderboardError(globalLeaderboardContainer, "Failed to load leaderboard")
             }
         )
 
@@ -164,10 +165,10 @@ class Profile : Fragment() {
 
         val historyList = repo.getDailyScoreHistory()
         val streakLevel = StudyStreakLevels.resolve(historyList)
-        levelBadgeCard.setCardBackgroundColor(streakLevel.backgroundColor)
+        levelBadgeView.setImageResource(streakLevel.badgeResId)
         levelBadgeText.text = streakLevel.label
-        levelBadgeText.setTextColor(streakLevel.textColor)
-        levelBadgeCard.contentDescription = "${streakLevel.label} level, ${streakLevel.streakDays} day streak"
+        levelBadgeText.setTextColor(Color.parseColor("#5F6368"))
+        levelBadgeView.contentDescription = "${streakLevel.label} level, ${streakLevel.streakDays} day streak"
 
         for (item in historyList) {
 
@@ -201,6 +202,84 @@ class Profile : Fragment() {
             "Interrupted ${formatInterruptedSeconds(item.interruptedSeconds)}"
     }
 
+    private fun renderGlobalLeaderboard(
+        container: LinearLayout,
+        entries: List<RankedLeaderboardEntry>
+    ) {
+        container.removeAllViews()
+        if (entries.isEmpty()) {
+            showLeaderboardError(container, "No leaderboard data yet")
+            return
+        }
+
+        val inflater = LayoutInflater.from(requireContext())
+        entries.forEach { entry ->
+            val itemView = inflater.inflate(R.layout.item_leaderboard_entry, container, false)
+            itemView.findViewById<TextView>(R.id.tvLeaderboardRank).text = entry.rank.toString()
+            AvatarAssets.bindAvatar(
+                itemView.findViewById(R.id.ivLeaderboardAvatar),
+                entry.avatarId
+            )
+            val label = entry.username.ifBlank { entry.displayName }.ifBlank { "User ${entry.rank}" }
+            itemView.findViewById<TextView>(R.id.tvLeaderboardName).text = label
+            itemView.findViewById<TextView>(R.id.tvLeaderboardScore).text = "Score ${entry.score}"
+            itemView.findViewById<TextView>(R.id.tvLeaderboardMinutes).text =
+                formatStudyMinutes(entry.totalFocusMinutes)
+            bindLeaderboardLevel(
+                userId = entry.userId,
+                displayName = label,
+                badgeView = itemView.findViewById(R.id.ivLeaderboardBadge),
+                levelView = itemView.findViewById(R.id.tvLeaderboardLevel)
+            )
+            container.addView(itemView)
+        }
+    }
+
+    private fun bindLeaderboardLevel(
+        userId: String,
+        displayName: String,
+        badgeView: ImageView,
+        levelView: TextView
+    ) {
+        badgeView.setImageResource(R.drawable.badge_explorer)
+        levelView.text = "Explorer"
+        levelView.setTextColor(Color.parseColor("#5F6368"))
+
+        firebaseRepository.loadStudySessions(
+            uid = userId,
+            onSuccess = { sessions ->
+                if (!isAdded) return@loadStudySessions
+                val history = StatisticsAggregator.buildDailyScoreRecords(sessions.orEmpty()).map { record ->
+                    DailyScoreHistoryEntry(
+                        date = record.date,
+                        score = record.focusScore,
+                        studyMinutes = record.studyMinutes,
+                        interruptionCount = record.interruptionCount,
+                        interruptedSeconds = record.interruptedSeconds
+                    )
+                }
+                val streakLevel = StudyStreakLevels.resolve(history)
+                badgeView.setImageResource(streakLevel.badgeResId)
+                badgeView.contentDescription = "$displayName ${streakLevel.label} level"
+                levelView.text = streakLevel.label
+            },
+            onError = {
+                if (!isAdded) return@loadStudySessions
+            }
+        )
+    }
+
+    private fun showLeaderboardError(container: LinearLayout, message: String) {
+        container.removeAllViews()
+        val textView = TextView(requireContext()).apply {
+            text = message
+            textSize = 14f
+            setTextColor(Color.parseColor("#888888"))
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+        }
+        container.addView(textView)
+    }
+
     private fun formatStudyMinutes(minutes: Long): String {
         val hours = minutes / 60
         val remainingMinutes = minutes % 60
@@ -228,24 +307,85 @@ class Profile : Fragment() {
     ) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_edit_profile, null)
         val displayNameInput = dialogView.findViewById<TextInputEditText>(R.id.etDisplayName)
-        val avatarCards = linkedMapOf(
-            AvatarAssets.CAT to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarCat),
-            AvatarAssets.CHICKEN to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarChicken),
-            AvatarAssets.PANDA to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarPanda),
-            AvatarAssets.RABBIT to dialogView.findViewById<MaterialCardView>(R.id.cardAvatarRabbit)
-        )
+        val avatarOptionsContainer = dialogView.findViewById<LinearLayout>(R.id.containerAvatarOptions)
+        val avatarIds = AvatarAssets.listAvatarIds(requireContext())
 
         displayNameInput.setText(initialDisplayName)
+        displayNameInput.setSelection(displayNameInput.text?.length ?: 0)
 
-        var selectedAvatarId = initialAvatarId.takeIf { it in AvatarAssets.avatarIds } ?: AvatarAssets.CAT
+        var selectedAvatarId = initialAvatarId.takeIf { it in avatarIds }
+            ?: AvatarAssets.defaultAvatarId(requireContext())
+        val avatarCards = linkedMapOf<String, MaterialCardView>()
+        val surfaceColor = MaterialColors.getColor(dialogView, com.google.android.material.R.attr.colorSurface)
+        val selectedContainerColor = MaterialColors.getColor(
+            dialogView,
+            com.google.android.material.R.attr.colorSecondaryContainer
+        )
+        val outlineColor = MaterialColors.getColor(
+            dialogView,
+            com.google.android.material.R.attr.colorOutlineVariant
+        )
+        val primaryColor = MaterialColors.getColor(dialogView, androidx.appcompat.R.attr.colorPrimary)
+
+        avatarIds.chunked(3).forEachIndexed { rowIndex, rowAvatarIds ->
+            val rowView = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = if (rowIndex == 0) 0 else dpToPx(12)
+                }
+            }
+
+            rowAvatarIds.forEachIndexed { index, avatarId ->
+                val card = layoutInflater.inflate(
+                    R.layout.item_avatar_option,
+                    rowView,
+                    false
+                ) as MaterialCardView
+                card.layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    dpToPx(88),
+                    1f
+                ).apply {
+                    when (index) {
+                        0 -> marginEnd = dpToPx(6)
+                        rowAvatarIds.lastIndex -> marginStart = dpToPx(6)
+                        else -> {
+                            marginStart = dpToPx(6)
+                            marginEnd = dpToPx(6)
+                        }
+                    }
+                }
+                card.isCheckable = true
+                card.strokeColor = outlineColor
+                AvatarAssets.bindAvatar(card.findViewById(R.id.ivAvatarOption), avatarId)
+                card.contentDescription = "$avatarId avatar"
+                avatarCards[avatarId] = card
+                rowView.addView(card)
+            }
+
+            repeat(3 - rowAvatarIds.size) {
+                rowView.addView(
+                    View(requireContext()),
+                    LinearLayout.LayoutParams(0, 0, 1f).apply {
+                        if (rowAvatarIds.isNotEmpty()) {
+                            marginStart = dpToPx(6)
+                        }
+                    }
+                )
+            }
+            avatarOptionsContainer.addView(rowView)
+        }
 
         fun updateAvatarSelection() {
             avatarCards.forEach { (avatarId, card) ->
                 val isSelected = avatarId == selectedAvatarId
-                card.strokeWidth = if (isSelected) dpToPx(3) else dpToPx(1)
-                card.setCardBackgroundColor(
-                    if (isSelected) Color.parseColor("#E8DEF8") else Color.WHITE
-                )
+                card.isChecked = isSelected
+                card.strokeWidth = if (isSelected) dpToPx(2) else dpToPx(1)
+                card.strokeColor = if (isSelected) primaryColor else outlineColor
+                card.setCardBackgroundColor(if (isSelected) selectedContainerColor else surfaceColor)
             }
         }
 
@@ -258,7 +398,7 @@ class Profile : Fragment() {
         updateAvatarSelection()
 
         val dialog = MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Edit Profile")
+            .setTitle("Edit profile")
             .setView(dialogView)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Save", null)

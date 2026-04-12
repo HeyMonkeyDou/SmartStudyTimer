@@ -20,7 +20,9 @@ data class UserProfile(
 data class LeaderboardEntry(
     val uid: String = "",
     val displayName: String = "",
+    val username: String = "",
     val bestFocusScore: Long = 0,
+    val totalFocusMinutes: Long = 0,
     val bestFocusScoreCompletedAt: String = "",
     val avatarId: String = "",
     val updatedAtEpochMillis: Long? = null
@@ -42,8 +44,10 @@ data class RankedLeaderboardEntry(
     val rank: Int,
     val userId: String,
     val displayName: String,
+    val username: String,
     val avatarId: String,
-    val score: Long
+    val score: Long,
+    val totalFocusMinutes: Long
 )
 
 data class DailyScoreHistoryEntry(
@@ -97,7 +101,9 @@ internal fun DocumentSnapshot.toLeaderboardEntry(): LeaderboardEntry {
     return LeaderboardEntry(
         uid = id,
         displayName = getString("displayName").orEmpty(),
+        username = getString("username").orEmpty(),
         bestFocusScore = getLong("bestFocusScore") ?: 0,
+        totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
         bestFocusScoreCompletedAt = getString("bestFocusScoreCompletedAt").orEmpty(),
         avatarId = AvatarAssets.resolveAvatarId(
             userId = id,

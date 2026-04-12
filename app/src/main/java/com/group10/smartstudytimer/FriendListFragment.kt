@@ -82,15 +82,18 @@ class FriendListFragment : Fragment() {
 
             val ivAvatar = itemView.findViewById<ImageView>(R.id.ivFriendAvatar)
             val tvName = itemView.findViewById<TextView>(R.id.tvFriendName)
+            val ivLevelBadge = itemView.findViewById<ImageView>(R.id.ivFriendLevelBadge)
+            val tvLevel = itemView.findViewById<TextView>(R.id.tvFriendLevel)
             val tvUsername = itemView.findViewById<TextView>(R.id.tvFriendUsername)
             val tvLastMessage = itemView.findViewById<TextView>(R.id.tvLastMessage)
             val tvUnreadBadge = itemView.findViewById<TextView>(R.id.tvUnreadBadge)
 
-            ivAvatar.setImageResource(AvatarAssets.getAvatarResId(friend.avatarId))
+            AvatarAssets.bindAvatar(ivAvatar, friend.avatarId)
 
             val displayName = friend.nickname.ifBlank { friend.username.ifBlank { friend.displayName } }
             tvName.text = displayName
             tvUsername.text = "@${friend.username.ifBlank { friend.displayName }}"
+            bindFriendLevel(friend, ivLevelBadge, tvLevel)
 
             val chatId = listOf(currentUid, friend.uid).sorted().joinToString("_")
             val lastRead = prefs.getLong("last_read_$chatId", 0L)
@@ -149,6 +152,43 @@ class FriendListFragment : Fragment() {
 
             container.addView(itemView)
         }
+    }
+
+    private fun bindFriendLevel(
+        friend: FriendProfile,
+        ivLevelBadge: ImageView,
+        tvLevel: TextView
+    ) {
+        ivLevelBadge.setImageResource(R.drawable.badge_explorer)
+        tvLevel.text = "Explorer"
+        tvLevel.setTextColor(0xFF5F6368.toInt())
+
+        firebaseRepository.loadStudySessions(
+            uid = friend.uid,
+            onSuccess = { sessions ->
+                if (!isAdded) return@loadStudySessions
+
+                val history = StatisticsAggregator.buildDailyScoreRecords(sessions.orEmpty()).map { record ->
+                    DailyScoreHistoryEntry(
+                        date = record.date,
+                        score = record.focusScore,
+                        studyMinutes = record.studyMinutes,
+                        interruptionCount = record.interruptionCount,
+                        interruptedSeconds = record.interruptedSeconds
+                    )
+                }
+                val streakLevel = StudyStreakLevels.resolve(history)
+
+                ivLevelBadge.setImageResource(streakLevel.badgeResId)
+                ivLevelBadge.contentDescription =
+                    "${friend.displayName.ifBlank { friend.username }} ${streakLevel.label} level"
+                tvLevel.text = streakLevel.label
+                tvLevel.setTextColor(0xFF5F6368.toInt())
+            },
+            onError = {
+                if (!isAdded) return@loadStudySessions
+            }
+        )
     }
 
     private fun showFriendOptions(friend: FriendProfile, currentDisplayName: String) {
