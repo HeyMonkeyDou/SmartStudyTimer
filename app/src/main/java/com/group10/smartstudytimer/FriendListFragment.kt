@@ -1,5 +1,6 @@
 package com.group10.smartstudytimer
 
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -73,6 +74,8 @@ class FriendListFragment : Fragment() {
 
         tvEmpty.visibility = View.GONE
         val inflater = LayoutInflater.from(requireContext())
+        val currentUid = firebaseRepository.getCurrentUserUid() ?: ""
+        val prefs = requireContext().getSharedPreferences("chat_prefs", Context.MODE_PRIVATE)
 
         friends.forEach { friend ->
             val itemView = inflater.inflate(R.layout.item_friend, container, false)
@@ -80,6 +83,8 @@ class FriendListFragment : Fragment() {
             val ivAvatar = itemView.findViewById<ImageView>(R.id.ivFriendAvatar)
             val tvName = itemView.findViewById<TextView>(R.id.tvFriendName)
             val tvUsername = itemView.findViewById<TextView>(R.id.tvFriendUsername)
+            val tvLastMessage = itemView.findViewById<TextView>(R.id.tvLastMessage)
+            val tvUnreadBadge = itemView.findViewById<TextView>(R.id.tvUnreadBadge)
 
             ivAvatar.setImageResource(AvatarAssets.getAvatarResId(friend.avatarId))
 
@@ -87,8 +92,45 @@ class FriendListFragment : Fragment() {
             tvName.text = displayName
             tvUsername.text = "@${friend.username.ifBlank { friend.displayName }}"
 
-            // Single tap → open chat
+            val chatId = listOf(currentUid, friend.uid).sorted().joinToString("_")
+            val lastRead = prefs.getLong("last_read_$chatId", 0L)
+
+            // Load last message preview
+            firebaseRepository.getLastChatMessage(
+                friendUid = friend.uid,
+                onSuccess = { msg ->
+                    if (!isAdded) return@getLastChatMessage
+                    if (msg != null) {
+                        val prefix = if (msg.senderId == currentUid) "You: " else ""
+                        tvLastMessage.text = "$prefix${msg.text}"
+                        tvLastMessage.visibility = View.VISIBLE
+                    }
+                },
+                onError = { /* leave hidden */ }
+            )
+
+            // Load unread count
+            firebaseRepository.getUnreadMessageCount(
+                friendUid = friend.uid,
+                sinceTimestamp = lastRead,
+                onSuccess = { count ->
+                    if (!isAdded) return@getUnreadMessageCount
+                    if (count > 0) {
+                        tvUnreadBadge.text = if (count > 99) "99+" else count.toString()
+                        tvUnreadBadge.visibility = View.VISIBLE
+                    } else {
+                        tvUnreadBadge.visibility = View.GONE
+                    }
+                },
+                onError = { /* leave hidden */ }
+            )
+
+            // Single tap → open chat and mark as read
             itemView.setOnClickListener {
+                // Save current time as lastRead before opening chat
+                prefs.edit().putLong("last_read_$chatId", System.currentTimeMillis()).apply()
+                tvUnreadBadge.visibility = View.GONE
+
                 val chatFragment = ChatFragment.newInstance(
                     friendUid = friend.uid,
                     friendDisplayName = displayName

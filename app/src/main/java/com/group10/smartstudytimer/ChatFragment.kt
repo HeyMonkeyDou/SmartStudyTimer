@@ -79,17 +79,29 @@ class ChatFragment : Fragment() {
 
     private fun startListening() {
         val currentUid = firebaseRepository.getCurrentUserUid() ?: return
+        val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
         listenerRegistration = firebaseRepository.listenToChatMessages(
             friendUid = friendUid,
             onUpdate = { messages ->
                 if (!isAdded) return@listenToChatMessages
                 renderMessages(messages, currentUid)
+                markAsRead(messages, currentUid, chatId)
             },
             onError = {
                 if (!isAdded) return@listenToChatMessages
                 Toast.makeText(requireContext(), "Failed to load messages.", Toast.LENGTH_SHORT).show()
             }
         )
+    }
+
+    private fun markAsRead(messages: List<ChatMessage>, currentUid: String, chatId: String) {
+        val lastFriendMsg = messages.filter { it.senderId != currentUid }.maxByOrNull { it.timestamp }
+        if (lastFriendMsg != null) {
+            requireContext().getSharedPreferences("chat_prefs", android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putLong("last_read_$chatId", lastFriendMsg.timestamp)
+                .apply()
+        }
     }
 
     private fun renderMessages(messages: List<ChatMessage>, currentUid: String) {

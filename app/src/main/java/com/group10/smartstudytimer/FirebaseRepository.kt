@@ -851,6 +851,63 @@ class FirebaseRepository(
             }
     }
 
+    fun getLastChatMessage(
+        friendUid: String,
+        onSuccess: (ChatMessage?) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
+                firestore.collection(CHATS_COLLECTION)
+                    .document(chatId)
+                    .collection(MESSAGES_SUBCOLLECTION)
+                    .orderBy("timestamp", Query.Direction.DESCENDING)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        val msg = result.documents.firstOrNull()?.let { doc ->
+                            ChatMessage(
+                                messageId = doc.getString("messageId").orEmpty(),
+                                senderId = doc.getString("senderId").orEmpty(),
+                                text = doc.getString("text").orEmpty(),
+                                timestamp = doc.getLong("timestamp") ?: 0L
+                            )
+                        }
+                        onSuccess(msg)
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun getUnreadMessageCount(
+        friendUid: String,
+        sinceTimestamp: Long,
+        onSuccess: (Int) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
+                firestore.collection(CHATS_COLLECTION)
+                    .document(chatId)
+                    .collection(MESSAGES_SUBCOLLECTION)
+                    .whereGreaterThan("timestamp", sinceTimestamp)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        val count = result.documents.count { doc ->
+                            doc.getString("senderId") != currentUid
+                        }
+                        onSuccess(count)
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
     fun getCurrentUserUid(): String? = auth.currentUser?.uid
 
     companion object {
