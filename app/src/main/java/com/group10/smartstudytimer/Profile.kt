@@ -32,6 +32,7 @@ class Profile : Fragment() {
         val avatarView = view.findViewById<ImageView>(R.id.ivAvatar)
         val levelBadgeView = view.findViewById<ImageView>(R.id.ivLevelBadge)
         val levelBadgeText = view.findViewById<TextView>(R.id.tvLevelBadge)
+        val bestRecordCard = view.findViewById<MaterialCardView>(R.id.cardBestRecord)
         val signOutButton = view.findViewById<Button>(R.id.signOutButton)
         val editProfileButton = view.findViewById<Button>(R.id.btnEditProfile)
 
@@ -109,11 +110,14 @@ class Profile : Fragment() {
         val bestRecord = repo.getTodayStudyRecord()
 
         if (bestRecord != null) {
+            bestRecordCard.visibility = View.VISIBLE
             view.findViewById<TextView>(R.id.tvBestScore).text =
                 bestRecord.focusScore.toString()
 
             view.findViewById<TextView>(R.id.tvBestDate).text =
                 bestRecord.completedAt.toString()
+        } else {
+            bestRecordCard.visibility = View.GONE
         }
 
         // Records sharing
