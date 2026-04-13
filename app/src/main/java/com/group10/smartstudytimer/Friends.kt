@@ -27,6 +27,7 @@ class Friends : Fragment() {
     private lateinit var tvNoRequests: TextView
     private lateinit var tvRequestBadge: TextView
     private lateinit var containerFriendsComparison: LinearLayout
+    private lateinit var tvNewMessageBanner: TextView
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -47,6 +48,7 @@ class Friends : Fragment() {
         tvNoRequests = view.findViewById(R.id.tvNoRequests)
         tvRequestBadge = view.findViewById(R.id.tvRequestBadge)
         containerFriendsComparison = view.findViewById(R.id.containerFriendsComparison)
+        tvNewMessageBanner = view.findViewById(R.id.tvNewMessageBanner)
 
         btnSendFriendRequest.setOnClickListener {
             val targetUsername = inputFriendUsername.text.toString().trim()
@@ -70,20 +72,72 @@ class Friends : Fragment() {
             )
         }
 
-        cardViewFriendList.setOnClickListener {
-            parentFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, FriendListFragment())
-                .addToBackStack("friendList")
-                .commit()
-        }
+        cardViewFriendList.setOnClickListener { openFriendList() }
+        tvNewMessageBanner.setOnClickListener { openFriendList() }
 
         swipeRefresh.setOnRefreshListener { refresh() }
         refresh()
     }
 
+    private fun openFriendList() {
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragmentContainer, FriendListFragment())
+            .addToBackStack("friendList")
+            .commit()
+    }
+
     private fun refresh() {
         loadIncomingRequests()
         loadFriendsComparison()
+        checkUnreadMessages()
+    }
+
+    private fun checkUnreadMessages() {
+        val currentUid = firebaseRepository.getCurrentUserUid() ?: return
+        val prefs = requireContext().getSharedPreferences("chat_prefs", Context.MODE_PRIVATE)
+
+        firebaseRepository.loadFriends(
+            onSuccess = { friends ->
+                if (!isAdded) return@loadFriends
+                if (friends.isEmpty()) {
+                    updateUnreadUI(false)
+                    return@loadFriends
+                }
+
+                var checked = 0
+                var hasUnread = false
+
+                friends.forEach { friend ->
+                    val chatId = listOf(currentUid, friend.uid).sorted().joinToString("_")
+                    val lastRead = prefs.getLong("last_read_$chatId", 0L)
+
+                    firebaseRepository.getLastChatMessage(
+                        friendUid = friend.uid,
+                        onSuccess = { msg ->
+                            if (msg != null && msg.senderId != currentUid && msg.timestamp > lastRead) {
+                                hasUnread = true
+                            }
+                            checked++
+                            if (checked == friends.size && isAdded) {
+                                updateUnreadUI(hasUnread)
+                            }
+                        },
+                        onError = {
+                            checked++
+                            if (checked == friends.size && isAdded) {
+                                updateUnreadUI(hasUnread)
+                            }
+                        }
+                    )
+                }
+            },
+            onError = { /* silently ignore */ }
+        )
+    }
+
+    private fun updateUnreadUI(hasUnread: Boolean) {
+        tvNewMessageBanner.visibility = if (hasUnread) View.VISIBLE else View.GONE
+        (activity as? MainActivity)?.setFriendsBadge(hasUnread)
     }
 
     private fun loadIncomingRequests() {

@@ -80,4 +80,13 @@ class MainActivity : AppCompatActivity() {
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNavigationView)
         bottomNav.visibility = if (visible) View.VISIBLE else View.GONE
     }
+
+    fun setFriendsBadge(visible: Boolean) {
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNavigationView) ?: return
+        if (visible) {
+            bottomNav.getOrCreateBadge(R.id.friends).isVisible = true
+        } else {
+            bottomNav.removeBadge(R.id.friends)
+        }
+    }
 }

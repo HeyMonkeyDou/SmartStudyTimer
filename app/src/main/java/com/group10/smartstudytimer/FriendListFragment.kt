@@ -23,6 +23,9 @@ class FriendListFragment : Fragment() {
     private lateinit var container: LinearLayout
     private lateinit var tvEmpty: TextView
 
+    /** Tracks the currently open swipe item so we can close it when another opens. */
+    private var currentOpenSwipe: SwipeRevealLayout? = null
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -36,17 +39,15 @@ class FriendListFragment : Fragment() {
 
         val toolbar = view.findViewById<MaterialToolbar>(R.id.toolbarFriendList)
         swipeRefresh = view.findViewById(R.id.swipeRefreshFriendList)
-        container = view.findViewById(R.id.containerFriendList)
-        tvEmpty = view.findViewById(R.id.tvFriendListEmpty)
+        container    = view.findViewById(R.id.containerFriendList)
+        tvEmpty      = view.findViewById(R.id.tvFriendListEmpty)
 
-        toolbar.setNavigationOnClickListener {
-            parentFragmentManager.popBackStack()
-        }
-
+        toolbar.setNavigationOnClickListener { parentFragmentManager.popBackStack() }
         swipeRefresh.setOnRefreshListener { loadFriends() }
-
         loadFriends()
     }
+
+    // ── Data loading ─────────────────────────────────────────────────────────
 
     private fun loadFriends() {
         firebaseRepository.loadFriends(
@@ -63,8 +64,11 @@ class FriendListFragment : Fragment() {
         )
     }
 
+    // ── Rendering ────────────────────────────────────────────────────────────
+
     private fun renderFriends(friends: List<FriendProfile>) {
         container.removeAllViews()
+        currentOpenSwipe = null
 
         if (friends.isEmpty()) {
             tvEmpty.visibility = View.VISIBLE
@@ -73,32 +77,38 @@ class FriendListFragment : Fragment() {
         }
 
         tvEmpty.visibility = View.GONE
-        val inflater = LayoutInflater.from(requireContext())
+        val inflater   = LayoutInflater.from(requireContext())
         val currentUid = firebaseRepository.getCurrentUserUid() ?: ""
-        val prefs = requireContext().getSharedPreferences("chat_prefs", Context.MODE_PRIVATE)
+        val prefs      = requireContext().getSharedPreferences("chat_prefs", Context.MODE_PRIVATE)
 
         friends.forEach { friend ->
             val itemView = inflater.inflate(R.layout.item_friend, container, false)
 
-            val ivAvatar = itemView.findViewById<ImageView>(R.id.ivFriendAvatar)
-            val tvName = itemView.findViewById<TextView>(R.id.tvFriendName)
-            val ivLevelBadge = itemView.findViewById<ImageView>(R.id.ivFriendLevelBadge)
-            val tvLevel = itemView.findViewById<TextView>(R.id.tvFriendLevel)
-            val tvUsername = itemView.findViewById<TextView>(R.id.tvFriendUsername)
-            val tvLastMessage = itemView.findViewById<TextView>(R.id.tvLastMessage)
-            val tvUnreadBadge = itemView.findViewById<TextView>(R.id.tvUnreadBadge)
+            // ── View references ──────────────────────────────────────────────
+            val swipeLayout    = itemView as SwipeRevealLayout
+            val frontContainer = itemView.findViewById<View>(R.id.frontContainer)
+            val ivAvatar       = itemView.findViewById<ImageView>(R.id.ivFriendAvatar)
+            val tvName         = itemView.findViewById<TextView>(R.id.tvFriendName)
+            val ivLevelBadge   = itemView.findViewById<ImageView>(R.id.ivFriendLevelBadge)
+            val tvLevel        = itemView.findViewById<TextView>(R.id.tvFriendLevel)
+            val tvUsername     = itemView.findViewById<TextView>(R.id.tvFriendUsername)
+            val tvLastMessage  = itemView.findViewById<TextView>(R.id.tvLastMessage)
+            val tvUnreadBadge  = itemView.findViewById<TextView>(R.id.tvUnreadBadge)
+            val btnMarkUnread  = itemView.findViewById<TextView>(R.id.btnMarkUnread)
+            val btnEditNotes   = itemView.findViewById<TextView>(R.id.btnEditNotes)
+            val btnDelete      = itemView.findViewById<TextView>(R.id.btnDeleteFriend)
 
+            // ── Bind static data ─────────────────────────────────────────────
             AvatarAssets.bindAvatar(ivAvatar, friend.avatarId)
-
             val displayName = friend.nickname.ifBlank { friend.username.ifBlank { friend.displayName } }
-            tvName.text = displayName
+            tvName.text     = displayName
             tvUsername.text = "@${friend.username.ifBlank { friend.displayName }}"
             bindFriendLevel(friend, ivLevelBadge, tvLevel)
 
-            val chatId = listOf(currentUid, friend.uid).sorted().joinToString("_")
+            val chatId   = listOf(currentUid, friend.uid).sorted().joinToString("_")
             val lastRead = prefs.getLong("last_read_$chatId", 0L)
 
-            // Load last message preview
+            // ── Load last message preview ────────────────────────────────────
             firebaseRepository.getLastChatMessage(
                 friendUid = friend.uid,
                 onSuccess = { msg ->
@@ -112,53 +122,79 @@ class FriendListFragment : Fragment() {
                 onError = { /* leave hidden */ }
             )
 
-            // Load unread count
+            // ── Load unread count ────────────────────────────────────────────
             firebaseRepository.getUnreadMessageCount(
                 friendUid = friend.uid,
                 sinceTimestamp = lastRead,
                 onSuccess = { count ->
                     if (!isAdded) return@getUnreadMessageCount
-                    if (count > 0) {
-                        tvUnreadBadge.text = if (count > 99) "99+" else count.toString()
-                        tvUnreadBadge.visibility = View.VISIBLE
-                    } else {
-                        tvUnreadBadge.visibility = View.GONE
-                    }
+                    updateUnreadBadge(tvUnreadBadge, count)
                 },
                 onError = { /* leave hidden */ }
             )
 
-            // Single tap → open chat and mark as read
-            itemView.setOnClickListener {
-                // Save current time as lastRead before opening chat
+            // ── Swipe-reveal: close others when this item opens ──────────────
+            swipeLayout.onOpenListener = {
+                val prev = currentOpenSwipe
+                if (prev != null && prev !== swipeLayout) prev.close(true)
+                currentOpenSwipe = swipeLayout
+            }
+
+            // ── Front tap → open chat (also marks as read) ───────────────────
+            frontContainer.setOnClickListener {
+                swipeLayout.close(false)
                 prefs.edit().putLong("last_read_$chatId", System.currentTimeMillis()).apply()
                 tvUnreadBadge.visibility = View.GONE
 
-                val chatFragment = ChatFragment.newInstance(
-                    friendUid = friend.uid,
-                    friendDisplayName = displayName
-                )
                 parentFragmentManager.beginTransaction()
-                    .replace(R.id.fragmentContainer, chatFragment)
+                    .replace(R.id.fragmentContainer, ChatFragment.newInstance(friend.uid, displayName))
                     .addToBackStack("chat")
                     .commit()
             }
 
-            // Long press → options menu
-            itemView.setOnLongClickListener {
-                showFriendOptions(friend, displayName)
-                true
+            // ── Action: Mark as Unread ───────────────────────────────────────
+            btnMarkUnread.setOnClickListener {
+                swipeLayout.close(true)
+                prefs.edit().putLong("last_read_$chatId", 0L).apply()
+                firebaseRepository.getUnreadMessageCount(
+                    friendUid = friend.uid,
+                    sinceTimestamp = 0L,
+                    onSuccess = { count ->
+                        if (!isAdded) return@getUnreadMessageCount
+                        updateUnreadBadge(tvUnreadBadge, count)
+                    },
+                    onError = { /* leave as-is */ }
+                )
+            }
+
+            // ── Action: Edit Notes ───────────────────────────────────────────
+            btnEditNotes.setOnClickListener {
+                swipeLayout.close(true)
+                showEditNicknameDialog(friend)
+            }
+
+            // ── Action: Delete Friend ────────────────────────────────────────
+            btnDelete.setOnClickListener {
+                swipeLayout.close(true)
+                showRemoveFriendDialog(friend, displayName)
             }
 
             container.addView(itemView)
         }
     }
 
-    private fun bindFriendLevel(
-        friend: FriendProfile,
-        ivLevelBadge: ImageView,
-        tvLevel: TextView
-    ) {
+    private fun updateUnreadBadge(badge: TextView, count: Int) {
+        if (count > 0) {
+            badge.text = if (count > 99) "99+" else count.toString()
+            badge.visibility = View.VISIBLE
+        } else {
+            badge.visibility = View.GONE
+        }
+    }
+
+    // ── Level badge ──────────────────────────────────────────────────────────
+
+    private fun bindFriendLevel(friend: FriendProfile, ivLevelBadge: ImageView, tvLevel: TextView) {
         ivLevelBadge.setImageResource(R.drawable.badge_explorer)
         tvLevel.text = "Explorer"
         tvLevel.setTextColor(0xFF5F6368.toInt())
@@ -167,42 +203,27 @@ class FriendListFragment : Fragment() {
             uid = friend.uid,
             onSuccess = { sessions ->
                 if (!isAdded) return@loadStudySessions
-
                 val history = StatisticsAggregator.buildDailyScoreRecords(sessions.orEmpty()).map { record ->
                     DailyScoreHistoryEntry(
-                        date = record.date,
-                        score = record.focusScore,
-                        studyMinutes = record.studyMinutes,
-                        interruptionCount = record.interruptionCount,
-                        interruptedSeconds = record.interruptedSeconds
+                        date                = record.date,
+                        score               = record.focusScore,
+                        studyMinutes        = record.studyMinutes,
+                        interruptionCount   = record.interruptionCount,
+                        interruptedSeconds  = record.interruptedSeconds
                     )
                 }
                 val streakLevel = StudyStreakLevels.resolve(history)
-
                 ivLevelBadge.setImageResource(streakLevel.badgeResId)
                 ivLevelBadge.contentDescription =
                     "${friend.displayName.ifBlank { friend.username }} ${streakLevel.label} level"
                 tvLevel.text = streakLevel.label
                 tvLevel.setTextColor(0xFF5F6368.toInt())
             },
-            onError = {
-                if (!isAdded) return@loadStudySessions
-            }
+            onError = { if (!isAdded) return@loadStudySessions }
         )
     }
 
-    private fun showFriendOptions(friend: FriendProfile, currentDisplayName: String) {
-        val options = arrayOf("Edit Notes", "Delete Friend")
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(currentDisplayName)
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> showEditNicknameDialog(friend)
-                    1 -> showRemoveFriendDialog(friend, currentDisplayName)
-                }
-            }
-            .show()
-    }
+    // ── Dialogs ──────────────────────────────────────────────────────────────
 
     private fun showEditNicknameDialog(friend: FriendProfile) {
         val input = EditText(requireContext()).apply {
@@ -218,7 +239,7 @@ class FriendListFragment : Fragment() {
                 val nickname = input.text.toString().trim()
                 firebaseRepository.updateFriendNickname(
                     friendUid = friend.uid,
-                    nickname = nickname,
+                    nickname  = nickname,
                     onSuccess = {
                         if (!isAdded) return@updateFriendNickname
                         Toast.makeText(requireContext(), "Note Updated.", Toast.LENGTH_SHORT).show()

@@ -11,6 +11,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.provider.Settings
@@ -21,6 +22,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import java.util.Locale
@@ -30,6 +32,85 @@ class Home : Fragment(), SensorEventListener {
 
     private val statisticsRepository: StatisticsRepository by lazy {
         StatisticsRepository.getInstance(requireContext())
+    }
+
+    // ── Consolidated permission flow ─────────────────────────────────────────
+    private var permissionCallback: (() -> Unit)? = null
+
+    private val standardPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { checkSpecialPermissions() }
+
+    private val usageStatsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { checkOverlayAndFinish() }
+
+    private val overlayLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        permissionCallback?.invoke()
+        permissionCallback = null
+    }
+
+    /**
+     * Request all permissions needed for a study session in one consolidated flow.
+     * Standard runtime permissions (POST_NOTIFICATIONS, RECORD_AUDIO) are batched first,
+     * then special permissions (Usage Stats → Overlay) are handled sequentially.
+     * [onDone] is called once the flow completes (whether granted or skipped).
+     */
+    private fun requestAllPermissions(onDone: () -> Unit) {
+        permissionCallback = onDone
+        val needed = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            needed.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            needed.add(Manifest.permission.RECORD_AUDIO)
+        }
+        if (needed.isNotEmpty()) {
+            standardPermLauncher.launch(needed.toTypedArray())
+        } else {
+            checkSpecialPermissions()
+        }
+    }
+
+    private fun checkSpecialPermissions() {
+        if (!hasUsageStatsPermission()) {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Permission Required")
+                .setMessage("To detect app switching during your study session, please grant Usage Access permission in Settings.")
+                .setPositiveButton("Go to Settings") { _, _ ->
+                    usageStatsLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                }
+                .setNegativeButton("Skip") { _, _ -> checkOverlayAndFinish() }
+                .show()
+            return
+        }
+        checkOverlayAndFinish()
+    }
+
+    private fun checkOverlayAndFinish() {
+        if (!Settings.canDrawOverlays(requireContext())) {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Overlay Permission")
+                .setMessage("For an immediate warning when you switch apps, grant 'Display over other apps' permission.")
+                .setPositiveButton("Go to Settings") { _, _ ->
+                    overlayLauncher.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+                }
+                .setNegativeButton("Skip") { _, _ ->
+                    permissionCallback?.invoke()
+                    permissionCallback = null
+                }
+                .show()
+            return
+        }
+        permissionCallback?.invoke()
+        permissionCallback = null
     }
 
     private lateinit var rootLayout: LinearLayout
@@ -109,7 +190,7 @@ class Home : Fragment(), SensorEventListener {
                     setupSession()
                 }
                 if (timeLeftInMillis > 0) {
-                    startTimer()
+                    requestAllPermissions { startTimer() }
                 }
             }
         }
@@ -248,7 +329,7 @@ class Home : Fragment(), SensorEventListener {
             override fun onTick(millisUntilFinished: Long) {
                 timeLeftInMillis = millisUntilFinished
                 updateTimerText()
-                if (isPomodoroMode && !isBreakTime) {
+                if (!isBreakTime) {
                     updateServiceNotification()
                 }
             }
@@ -313,9 +394,11 @@ class Home : Fragment(), SensorEventListener {
             accelerometer?.let { sensor ->
                 sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
             }
-            checkAndRequestPermissions()
         }
         startDistractionService()
+        // Push an immediate notification update so the lock screen shows correct
+        // data from the very first second (not the placeholder "00:00:00").
+        updateServiceNotification()
 
         updateButtons()
         updateUIState()
@@ -568,7 +651,7 @@ class Home : Fragment(), SensorEventListener {
 
     private fun updateServiceNotification() {
         val totalSeconds = timeLeftInMillis / 1000
-        val hours = totalSeconds / 3600
+        val hours   = totalSeconds / 3600
         val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
         val timeText = if (hours > 0) {
@@ -576,11 +659,20 @@ class Home : Fragment(), SensorEventListener {
         } else {
             String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
         }
-        val label = "Round $currentRound / $totalRounds"
+
+        // Progress: how far through the current phase (0-1000)
+        val progress = if (initialTimeInMillis > 0) {
+            ((initialTimeInMillis - timeLeftInMillis) * 1000L / initialTimeInMillis).toInt()
+        } else 0
+
         Intent(requireContext(), DistractionDetectorService::class.java).apply {
             action = DistractionDetectorService.ACTION_UPDATE_TIME
-            putExtra(DistractionDetectorService.EXTRA_TIME_TEXT, timeText)
-            putExtra(DistractionDetectorService.EXTRA_LABEL, label)
+            putExtra(DistractionDetectorService.EXTRA_TIME_TEXT,         timeText)
+            putExtra(DistractionDetectorService.EXTRA_LABEL,             "Round $currentRound / $totalRounds")
+            putExtra(DistractionDetectorService.EXTRA_DISTRACTION_COUNT, distractionCount)
+            // Non-zero limit only in Pomodoro study rounds; Normal mode passes 0 → hides counter
+            putExtra(DistractionDetectorService.EXTRA_DISTRACTION_LIMIT, if (isPomodoroMode) distractionLimit else 0)
+            putExtra(DistractionDetectorService.EXTRA_PROGRESS,          progress)
         }.also { requireContext().startService(it) }
     }
 
@@ -592,30 +684,6 @@ class Home : Fragment(), SensorEventListener {
             requireActivity().packageName
         )
         return mode == AppOpsManager.MODE_ALLOWED
-    }
-
-    private fun checkAndRequestPermissions() {
-        if (!hasUsageStatsPermission()) {
-            AlertDialog.Builder(requireContext())
-                .setTitle("Permission Required")
-                .setMessage("To detect app switching during your study session, please grant Usage Access permission in Settings.")
-                .setPositiveButton("Go to Settings") { _, _ ->
-                    startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-            return
-        }
-        if (!Settings.canDrawOverlays(requireContext())) {
-            AlertDialog.Builder(requireContext())
-                .setTitle("Overlay Permission")
-                .setMessage("For an immediate warning when you switch apps, grant 'Display over other apps' permission.")
-                .setPositiveButton("Go to Settings") { _, _ ->
-                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
-                }
-                .setNegativeButton("Skip", null)
-                .show()
-        }
     }
 
     // Relevant methods and variables for voice control

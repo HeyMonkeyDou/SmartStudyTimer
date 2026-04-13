@@ -4,6 +4,7 @@ import android.app.AppOpsManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
@@ -17,8 +18,10 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 
 class DistractionDetectorService : Service() {
@@ -29,14 +32,27 @@ class DistractionDetectorService : Service() {
     private var overlayVisible = false
     private var lastCheckedTime = 0L
 
+    // Current session state (updated by ACTION_UPDATE_TIME)
+    private var currentTimeText     = ""
+    private var currentProgress     = 0       // 0-1000
+    private var currentDistraction  = 0
+    private var currentLimit        = 0       // 0 = Normal mode (hide distraction UI)
+
     companion object {
-        const val ACTION_START = "ACTION_START"
-        const val ACTION_STOP = "ACTION_STOP"
+        const val ACTION_START       = "ACTION_START"
+        const val ACTION_STOP        = "ACTION_STOP"
         const val ACTION_UPDATE_TIME = "ACTION_UPDATE_TIME"
-        const val EXTRA_TIME_TEXT = "time_text"
-        const val EXTRA_LABEL = "label"
+
+        const val EXTRA_TIME_TEXT          = "time_text"
+        const val EXTRA_LABEL              = "label"
+        const val EXTRA_DISTRACTION_COUNT  = "distraction_count"
+        const val EXTRA_DISTRACTION_LIMIT  = "distraction_limit"
+        const val EXTRA_PROGRESS           = "progress"   // 0–1000
+
         private const val NOTIFICATION_ID = 1001
-        private const val CHANNEL_ID = "distraction_detector_channel"
+        // New channel ID forces recreation with correct importance + lock-screen visibility.
+        // (Channel settings cannot be changed once a channel is created.)
+        private const val CHANNEL_ID      = "study_timer_v2"
 
         // Set to true by this service when a distraction is detected.
         // Home fragment reads and resets this flag in onResume().
@@ -69,7 +85,7 @@ class DistractionDetectorService : Service() {
             ACTION_START -> {
                 lastCheckedTime = System.currentTimeMillis()
                 interruptionStartedAtEpochMillis = null
-                val notification = buildNotification("Study session running", "")
+                val notification = buildRichNotification()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
                 } else {
@@ -78,9 +94,11 @@ class DistractionDetectorService : Service() {
                 handler.post(pollRunnable)
             }
             ACTION_UPDATE_TIME -> {
-                val timeText = intent.getStringExtra(EXTRA_TIME_TEXT) ?: return START_NOT_STICKY
-                val label = intent.getStringExtra(EXTRA_LABEL) ?: ""
-                updateNotificationContent(label, timeText)
+                currentTimeText    = intent.getStringExtra(EXTRA_TIME_TEXT)   ?: ""
+                currentDistraction = intent.getIntExtra(EXTRA_DISTRACTION_COUNT, 0)
+                currentLimit       = intent.getIntExtra(EXTRA_DISTRACTION_LIMIT,  0)
+                currentProgress    = intent.getIntExtra(EXTRA_PROGRESS,           0)
+                pushNotificationUpdate()
             }
             ACTION_STOP -> stopSelf()
         }
@@ -132,14 +150,12 @@ class DistractionDetectorService : Service() {
     }
 
     private fun onOtherAppDetected() {
-        // Stop polling; we'll restart it after the user returns.
         handler.removeCallbacks(pollRunnable)
         interruptionStartedAtEpochMillis = System.currentTimeMillis()
 
         if (Settings.canDrawOverlays(this)) {
             showOverlay()
         } else {
-            // No overlay permission: set the flag so Home picks it up on resume.
             distractionDetectedByService = true
         }
     }
@@ -157,7 +173,6 @@ class DistractionDetectorService : Service() {
         overlayVisible = true
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-
         val inflater = LayoutInflater.from(this)
         overlayView = inflater.inflate(R.layout.overlay_distraction_warning, null)
 
@@ -167,14 +182,11 @@ class DistractionDetectorService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP
-        }
+        ).apply { gravity = Gravity.TOP }
 
         overlayView?.findViewById<Button>(R.id.btnBackToStudy)?.setOnClickListener {
             distractionDetectedByService = true
             hideOverlay()
-            // Bring our app to the foreground
             val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
@@ -200,33 +212,62 @@ class DistractionDetectorService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Study Session Monitor",
-                NotificationManager.IMPORTANCE_LOW
+                // IMPORTANCE_DEFAULT is the minimum level that shows reliably on the lock screen.
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
-                description = "Monitors app usage during study sessions"
+                description = "Shows remaining time and distractions during a study session"
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setSound(null, null)      // silent – no sound on each update
+                enableVibration(false)
             }
-            getSystemService(NotificationManager::class.java)
-                .createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 
-    private fun updateNotificationContent(label: String, timeText: String) {
-        val title = if (label.isNotEmpty()) "Study Timer — $label" else "Study Session Active"
-        val text = if (timeText.isNotEmpty()) "Time remaining: $timeText" else "Distraction detection is running"
-        val notification = buildNotification(title, text)
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, notification)
+    /** Push an updated notification to the system. */
+    private fun pushNotificationUpdate() {
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, buildRichNotification())
     }
 
-    private fun buildNotification(title: String, text: String): Notification {
-        val displayTitle = title.ifEmpty { "Study Session Active" }
-        val displayText = text.ifEmpty { "Distraction detection is running" }
+    /** Build the rich RemoteViews notification shown in the shade and on the lock screen. */
+    private fun buildRichNotification(): Notification {
+        val timeDisplay = currentTimeText.ifEmpty { "00:00:00" }
+
+        // Tap the notification → open the app
+        val tapIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pendingFlag = PendingIntent.FLAG_UPDATE_CURRENT or
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        val pendingIntent = PendingIntent.getActivity(this, 0, tapIntent ?: Intent(), pendingFlag)
+
+        // ── Build RemoteViews (two separate instances required) ───────────────
+        fun buildViews() = RemoteViews(packageName, R.layout.notification_study_timer).also { v ->
+            v.setTextViewText(R.id.notifTime, timeDisplay)
+            v.setProgressBar(R.id.notifProgress, 1000, currentProgress.coerceIn(0, 1000), false)
+            if (currentLimit > 0) {
+                v.setViewVisibility(R.id.notifDistractionContainer, View.VISIBLE)
+                v.setTextViewText(R.id.notifDistraction, "$currentDistraction/$currentLimit")
+            } else {
+                v.setViewVisibility(R.id.notifDistractionContainer, View.GONE)
+            }
+        }
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(displayTitle)
-            .setContentText(displayText)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            // Plain-text fallbacks (shown if custom view fails to render)
+            .setContentTitle(timeDisplay)
+            .setContentText(
+                if (currentLimit > 0) "Distractions: $currentDistraction / $currentLimit"
+                else "Study session active"
+            )
+            .setCustomContentView(buildViews())      // collapsed state in shade
+            .setCustomBigContentView(buildViews())   // expanded state — shown on lock screen
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setContentIntent(pendingIntent)
             .build()
     }
 }
