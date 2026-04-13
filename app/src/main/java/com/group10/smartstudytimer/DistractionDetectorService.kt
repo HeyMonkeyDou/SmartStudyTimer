@@ -243,7 +243,11 @@ class DistractionDetectorService : Service() {
         val pendingIntent = PendingIntent.getActivity(this, 0, tapIntent ?: Intent(), pendingFlag)
 
         // ── Build RemoteViews (two separate instances required) ───────────────
-        fun buildViews() = RemoteViews(packageName, R.layout.notification_study_timer).also { v ->
+        fun buildCompactViews() = RemoteViews(packageName, R.layout.notification_study_timer_compact).also { v ->
+            v.setTextViewText(R.id.notifTime, timeDisplay)
+        }
+
+        fun buildExpandedViews() = RemoteViews(packageName, R.layout.notification_study_timer).also { v ->
             v.setTextViewText(R.id.notifTime, timeDisplay)
             v.setProgressBar(R.id.notifProgress, 1000, currentProgress.coerceIn(0, 1000), false)
             if (currentLimit > 0) {
@@ -262,8 +266,8 @@ class DistractionDetectorService : Service() {
                 if (currentLimit > 0) "Distractions: $currentDistraction / $currentLimit"
                 else "Study session active"
             )
-            .setCustomContentView(buildViews())      // collapsed state in shade
-            .setCustomBigContentView(buildViews())   // expanded state — shown on lock screen
+            .setCustomContentView(buildCompactViews())      // collapsed state in shade
+            .setCustomBigContentView(buildExpandedViews())   // expanded state — shown on lock screen
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
