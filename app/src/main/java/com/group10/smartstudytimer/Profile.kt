@@ -35,6 +35,12 @@ class Profile : Fragment() {
         val signOutButton = view.findViewById<Button>(R.id.signOutButton)
         val editProfileButton = view.findViewById<Button>(R.id.btnEditProfile)
 
+        val openBadgeRulesDialog = {
+            showBadgeRulesDialog()
+        }
+        levelBadgeView.setOnClickListener { openBadgeRulesDialog() }
+        levelBadgeText.setOnClickListener { openBadgeRulesDialog() }
+
         var currentProfileHeader: ProfileHeader? = null
 
         fun renderProfileHeader(profile: ProfileHeader) {
@@ -414,6 +420,94 @@ class Profile : Fragment() {
         }
 
         dialog.show()
+    }
+
+    private fun showBadgeRulesDialog() {
+        val context = requireContext()
+        val content = android.widget.ScrollView(context).apply {
+            setPadding(dpToPx(12), 0, dpToPx(8), 0)
+            val container = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
+            }
+
+            val introView = TextView(context).apply {
+                text = "Badge levels are based on your active study streak."
+                textSize = 14f
+                setTextColor(Color.parseColor("#202124"))
+            }
+            container.addView(introView)
+
+            val levelsTitle = TextView(context).apply {
+                text = "Level rules"
+                textSize = 15f
+                setTextColor(Color.parseColor("#202124"))
+                setPadding(0, dpToPx(16), 0, dpToPx(8))
+            }
+            container.addView(levelsTitle)
+
+            container.addView(createBadgeRuleRow(R.drawable.badge_explorer, "Explorer: 0 days"))
+            container.addView(createBadgeRuleRow(R.drawable.badge_starter, "Starter: 1 day"))
+            container.addView(createBadgeRuleRow(R.drawable.badge_rookie, "Rookie: 2-3 days"))
+            container.addView(createBadgeRuleRow(R.drawable.badge_steady, "Steady: 4-6 days"))
+            container.addView(createBadgeRuleRow(R.drawable.badge_pro, "Pro: 7-13 days"))
+            container.addView(createBadgeRuleRow(R.drawable.badge_master, "Master: 14-29 days"))
+            container.addView(createBadgeRuleRow(R.drawable.badge_elite, "Elite: 30-59 days"))
+            container.addView(createBadgeRuleRow(R.drawable.badge_legend, "Legend: 60+ days"))
+
+            val detailsView = TextView(context).apply {
+                text = """
+                    How streaks work:
+                    Your streak counts consecutive study days up to your most recent study date.
+
+                    Rank-down rule:
+                    If you stop studying, your badge drops by 1 level for each missed day after your last study day.
+
+                    Example:
+                    An 8-day streak is Pro.
+                    If you miss 2 days, it drops 2 levels to Rookie.
+                """.trimIndent()
+                textSize = 14f
+                setTextColor(Color.parseColor("#202124"))
+                setPadding(0, dpToPx(16), 0, 0)
+            }
+            container.addView(detailsView)
+            addView(container)
+        }
+
+        MaterialAlertDialogBuilder(context)
+            .setTitle("Badge Rules")
+            .setView(content)
+            .setPositiveButton("Close", null)
+            .show()
+    }
+
+    private fun createBadgeRuleRow(
+        badgeResId: Int,
+        text: String
+    ): LinearLayout {
+        return LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dpToPx(6), 0, dpToPx(6))
+
+            addView(ImageView(context).apply {
+                layoutParams = LinearLayout.LayoutParams(dpToPx(22), dpToPx(22))
+                setImageResource(badgeResId)
+            })
+
+            addView(TextView(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginStart = dpToPx(10)
+                }
+                this.text = text
+                textSize = 14f
+                setTextColor(Color.parseColor("#202124"))
+            })
+        }
     }
 
     private fun dpToPx(dp: Int): Int {
