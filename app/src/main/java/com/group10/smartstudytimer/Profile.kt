@@ -100,7 +100,7 @@ class Profile : Fragment() {
         )
 
         // Best score
-        val bestRecord = repo.getBestStudyRecord()
+        val bestRecord = repo.getTodayStudyRecord()
 
         if (bestRecord != null) {
             view.findViewById<TextView>(R.id.tvBestScore).text =
@@ -121,7 +121,7 @@ class Profile : Fragment() {
                     // optional: show toast
                 },
                 onNoData = {
-                    Toast.makeText(requireContext(), "You don't have any records yet. Please start a session first.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "You don't have any study record for today yet. Please start a session first.", Toast.LENGTH_SHORT).show()
                 },
                 onError = {
                     Toast.makeText(requireContext(), "Sharing failed", Toast.LENGTH_SHORT).show()
@@ -220,7 +220,7 @@ class Profile : Fragment() {
             itemView.findViewById<TextView>(R.id.tvLeaderboardName).text = label
             itemView.findViewById<TextView>(R.id.tvLeaderboardScore).text = "Score ${entry.score}"
             itemView.findViewById<TextView>(R.id.tvLeaderboardMinutes).text =
-                formatStudyMinutes(entry.totalFocusMinutes)
+                formatStudyMinutes(entry.studyMinutes)
             bindLeaderboardLevel(
                 userId = entry.userId,
                 displayName = label,

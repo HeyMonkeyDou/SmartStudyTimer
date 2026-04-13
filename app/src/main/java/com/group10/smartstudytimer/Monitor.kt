@@ -58,9 +58,7 @@ class Monitor : Fragment() {
         tvFocusLevel.text = "Focus Level: $focusLevel"
 
         // Convert minutes → HH:MM
-        val hours = todayStats.studyMinutes / 60
-        val minutes = todayStats.studyMinutes % 60
-        tvSessionTime.text = "Session Time: %02d:%02d".format(hours, minutes)
+        tvSessionTime.text = "Session Time: ${formatDuration(todayStats.studyMinutes * 60)}"
 
         tvInterruptedCount.text = "Interrupted Count: ${todayStats.interruptionCount}"
 
@@ -69,14 +67,15 @@ class Monitor : Fragment() {
         val phoneUseSeconds = todayStats.interruptedSeconds
 
         tvPickupCount.text = "Pickup Count: $pickupCount"
-        tvPhoneUseCount.text = "Phone-use Time: ${formatMinutesSeconds(phoneUseSeconds)}"
+        tvPhoneUseCount.text = "Phone-use Time: ${formatDuration(phoneUseSeconds)}"
 
         return view
     }
 
-    private fun formatMinutesSeconds(totalSeconds: Long): String {
-        val minutes = totalSeconds / 60
+    private fun formatDuration(totalSeconds: Long): String {
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
-        return "${minutes}min${seconds}sec"
+        return "${hours}h ${minutes}m ${seconds}s"
     }
 }

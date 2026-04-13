@@ -63,13 +63,11 @@ class Statistic : Fragment() {
         progressScore.progress = score.toInt()
 
         // Session length
-        val hours = daily.studyMinutes / 60
-        val minutes = daily.studyMinutes % 60
-        tvSessionLength.text = "Session length: %02d:%02d".format(hours, minutes)
+        tvSessionLength.text = "Session length: ${formatDuration(daily.studyMinutes * 60)}"
 
         // Interruptions
         tvInterruptionCount.text = "Interruption count: ${daily.interruptionCount}"
-        tvInterruptedTime.text = "Interrupted time: ${formatMinutesSeconds(daily.interruptedSeconds)}"
+        tvInterruptedTime.text = "Interrupted time: ${formatDuration(daily.interruptedSeconds)}"
 
         // Total sessions (all time)
         val totalCompleted = allSessions.sumOf { it.completedSessions }
@@ -82,9 +80,10 @@ class Statistic : Fragment() {
         tvMonthlySessions.text = "$month $year completed session: $monthlyCompleted"
     }
 
-    private fun formatMinutesSeconds(totalSeconds: Long): String {
-        val minutes = totalSeconds / 60
+    private fun formatDuration(totalSeconds: Long): String {
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
-        return "${minutes}min${seconds}sec"
+        return "${hours}h ${minutes}m ${seconds}s"
     }
 }

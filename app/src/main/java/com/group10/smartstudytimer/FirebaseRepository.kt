@@ -5,6 +5,7 @@ import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import java.time.LocalDate
 import kotlin.text.get
 import kotlin.text.set
 
@@ -90,7 +91,10 @@ class FirebaseRepository(
                                 totalFocusMinutes = existingProfile?.totalFocusMinutes ?: 0L,
                                 avatarId = existingProfile?.avatarId.orEmpty(),
                                 bestFocusScore = existingProfile?.bestFocusScore ?: 0L,
-                                bestFocusScoreCompletedAt = existingProfile?.bestFocusScoreCompletedAt.orEmpty()
+                                bestFocusScoreCompletedAt = existingProfile?.bestFocusScoreCompletedAt.orEmpty(),
+                                todayFocusScore = existingProfile?.todayFocusScore ?: 0L,
+                                todayFocusScoreDate = existingProfile?.todayFocusScoreDate.orEmpty(),
+                                todayStudyMinutes = existingProfile?.todayStudyMinutes ?: 0L
                             ),
                             onSuccess = onSuccess,
                             onError = onError
@@ -127,7 +131,10 @@ class FirebaseRepository(
                                 totalFocusMinutes = existingProfile?.totalFocusMinutes ?: 0L,
                                 avatarId = resolvedAvatarId,
                                 bestFocusScore = existingProfile?.bestFocusScore ?: 0L,
-                                bestFocusScoreCompletedAt = existingProfile?.bestFocusScoreCompletedAt.orEmpty()
+                                bestFocusScoreCompletedAt = existingProfile?.bestFocusScoreCompletedAt.orEmpty(),
+                                todayFocusScore = existingProfile?.todayFocusScore ?: 0L,
+                                todayFocusScoreDate = existingProfile?.todayFocusScoreDate.orEmpty(),
+                                todayStudyMinutes = existingProfile?.todayStudyMinutes ?: 0L
                             ),
                             onSuccess = {
                                 auth.currentUser?.updateProfile(
@@ -163,6 +170,9 @@ class FirebaseRepository(
             "avatarId" to resolvedAvatarId,
             "bestFocusScore" to profile.bestFocusScore,
             "bestFocusScoreCompletedAt" to profile.bestFocusScoreCompletedAt,
+            "todayFocusScore" to profile.todayFocusScore,
+            "todayFocusScoreDate" to profile.todayFocusScoreDate,
+            "todayStudyMinutes" to profile.todayStudyMinutes,
             "updatedAt" to FieldValue.serverTimestamp()
         )
 
@@ -206,12 +216,20 @@ class FirebaseRepository(
         onSuccess: (List<LeaderboardEntry>) -> Unit,
         onError: (Exception) -> Unit
     ) {
+        val today = LocalDate.now().toString()
         firestore.collection(USERS_COLLECTION)
-            .orderBy("bestFocusScore", Query.Direction.DESCENDING)
-            .limit(limit)
+            .whereEqualTo("todayFocusScoreDate", today)
             .get()
             .addOnSuccessListener { result ->
-                onSuccess(result.documents.map { it.toLeaderboardEntry() })
+                onSuccess(
+                    result.documents
+                        .map { it.toLeaderboardEntry() }
+                        .sortedWith(
+                            compareByDescending<LeaderboardEntry> { it.todayFocusScore }
+                                .thenByDescending { it.todayStudyMinutes }
+                        )
+                        .take(limit.toInt())
+                )
             }
             .addOnFailureListener { error -> onError(error) }
     }
@@ -219,6 +237,9 @@ class FirebaseRepository(
     fun updateCurrentBestFocusScore(
         bestFocusScore: Long,
         bestFocusScoreCompletedAt: String,
+        todayFocusScore: Long,
+        todayFocusScoreDate: String,
+        todayStudyMinutes: Long,
         onSuccess: () -> Unit = {},
         onError: (Exception) -> Unit = {}
     ) {
@@ -232,6 +253,9 @@ class FirebaseRepository(
                             "avatarId" to AvatarAssets.resolveAvatarId(uid, profile?.avatarId),
                             "bestFocusScore" to bestFocusScore,
                             "bestFocusScoreCompletedAt" to bestFocusScoreCompletedAt,
+                            "todayFocusScore" to todayFocusScore,
+                            "todayFocusScoreDate" to todayFocusScoreDate,
+                            "todayStudyMinutes" to todayStudyMinutes,
                             "updatedAt" to FieldValue.serverTimestamp()
                         )
 
@@ -549,16 +573,19 @@ class FirebaseRepository(
                             .get()
                             .addOnSuccessListener { userDocs ->
                                 val friends = userDocs.documents.map { doc ->
-                                    FriendProfile(
-                                        uid = doc.id,
-                                        displayName = doc.getString("displayName").orEmpty(),
-                                        email = doc.getString("email").orEmpty(),
-                                        username = doc.getString("username").orEmpty(),
-                                        avatarId = AvatarAssets.resolveAvatarId(doc.id, doc.getString("avatarId")),
-                                        bestFocusScore = doc.getLong("bestFocusScore") ?: 0L,
-                                        totalFocusMinutes = doc.getLong("totalFocusMinutes") ?: 0L,
-                                        nickname = nicknameMap[doc.id].orEmpty()
-                                    )
+                                FriendProfile(
+                                    uid = doc.id,
+                                    displayName = doc.getString("displayName").orEmpty(),
+                                    email = doc.getString("email").orEmpty(),
+                                    username = doc.getString("username").orEmpty(),
+                                    avatarId = AvatarAssets.resolveAvatarId(doc.id, doc.getString("avatarId")),
+                                    bestFocusScore = doc.getLong("bestFocusScore") ?: 0L,
+                                    totalFocusMinutes = doc.getLong("totalFocusMinutes") ?: 0L,
+                                    todayFocusScore = doc.getLong("todayFocusScore") ?: 0L,
+                                    todayFocusScoreDate = doc.getString("todayFocusScoreDate").orEmpty(),
+                                    todayStudyMinutes = doc.getLong("todayStudyMinutes") ?: 0L,
+                                    nickname = nicknameMap[doc.id].orEmpty()
+                                )
                                 }
                                 onSuccess(friends)
                             }

@@ -188,18 +188,18 @@ class FirebaseDebugActivity : AppCompatActivity() {
     }
 
     private fun loadBestRecord() {
-        val bestRecord = profileRepository.getBestStudyRecord()
+        val bestRecord = profileRepository.getTodayStudyRecord()
         profilePreviewText.text = if (bestRecord == null) {
-            "bestStudyRecord: null"
+            "todayStudyRecord: null"
         } else {
             buildString {
-                appendLine("bestStudyRecord:")
+                appendLine("todayStudyRecord:")
                 appendLine("focusScore: ${bestRecord.focusScore}")
                 appendLine("completedAt: ${bestRecord.completedAt}")
             }.trim()
         }
-        appendLog("Best study record loaded.")
-        setStatus("Best study record loaded")
+        appendLog("Today study record loaded.")
+        setStatus("Today study record loaded")
     }
 
     private fun loadProfileLeaderboard() {
@@ -244,19 +244,19 @@ class FirebaseDebugActivity : AppCompatActivity() {
     }
 
     private fun shareBestRecordImage() {
-        setStatus("Preparing best record image...")
+        setStatus("Preparing today record image...")
         profileRepository.shareBestRecordImage(
             onSuccess = {
-                appendLog("Best record image share sheet opened.")
-                setStatus("Best record image shared")
+                appendLog("Today record image share sheet opened.")
+                setStatus("Today record image shared")
             },
             onNoData = {
-                appendLog("No best study record available to share as image.")
-                setStatus("No best study record")
-                Toast.makeText(this, "No best study record available to share", Toast.LENGTH_SHORT).show()
+                appendLog("No today study record available to share as image.")
+                setStatus("No today study record")
+                Toast.makeText(this, "No today study record available to share", Toast.LENGTH_SHORT).show()
             },
             onError = { error ->
-                showError("Share best record image failed", error)
+                showError("Share today record image failed", error)
             }
         )
     }

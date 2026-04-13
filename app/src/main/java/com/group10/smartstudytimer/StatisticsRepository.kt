@@ -172,13 +172,19 @@ class StatisticsRepository(
     }
 
     private fun syncBestFocusScoreToFirebase(sessions: List<StudySessionRecord>) {
-        val bestRecord = StatisticsAggregator.buildDailyScoreRecords(sessions)
+        val dailyRecords = StatisticsAggregator.buildDailyScoreRecords(sessions)
+        val bestRecord = dailyRecords
             .maxWithOrNull(compareBy<DailyStatisticsRecord> { it.focusScore }.thenBy { it.date })
             ?: DailyStatisticsRecord()
+        val today = LocalDate.now().toString()
+        val todayRecord = dailyRecords.firstOrNull { it.date == today } ?: DailyStatisticsRecord(date = today)
 
         firebaseRepository.updateCurrentBestFocusScore(
             bestFocusScore = bestRecord.focusScore,
-            bestFocusScoreCompletedAt = bestRecord.date
+            bestFocusScoreCompletedAt = bestRecord.date,
+            todayFocusScore = todayRecord.focusScore,
+            todayFocusScoreDate = today,
+            todayStudyMinutes = todayRecord.studyMinutes
         )
     }
 

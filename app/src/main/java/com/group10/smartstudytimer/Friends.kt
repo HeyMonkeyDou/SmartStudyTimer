@@ -17,6 +17,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.card.MaterialCardView
+import java.time.LocalDate
 
 class Friends : Fragment() {
 
@@ -232,7 +233,10 @@ class Friends : Fragment() {
                                     email = it.email,
                                     avatarId = it.avatarId,
                                     bestFocusScore = it.bestFocusScore,
-                                    totalFocusMinutes = it.totalFocusMinutes
+                                    totalFocusMinutes = it.totalFocusMinutes,
+                                    todayFocusScore = it.todayFocusScore,
+                                    todayFocusScoreDate = it.todayFocusScoreDate,
+                                    todayStudyMinutes = it.todayStudyMinutes
                                 )
                             )
                         }
@@ -264,7 +268,11 @@ class Friends : Fragment() {
 
         val inflater = LayoutInflater.from(requireContext())
         val currentUserId = firebaseRepository.getCurrentUserUid()
-        friends.sortedByDescending { it.bestFocusScore }
+        val today = LocalDate.now().toString()
+        friends.sortedWith(
+            compareByDescending<FriendProfile> { if (it.todayFocusScoreDate == today) it.todayFocusScore else 0L }
+                .thenByDescending { if (it.todayFocusScoreDate == today) it.todayStudyMinutes else 0L }
+        )
             .forEachIndexed { index, friend ->
                 val itemView = inflater.inflate(
                     R.layout.item_leaderboard_entry,
@@ -286,9 +294,11 @@ class Friends : Fragment() {
                     friend.avatarId
                 )
                 itemView.findViewById<TextView>(R.id.tvLeaderboardName).text = displayName
-                itemView.findViewById<TextView>(R.id.tvLeaderboardScore).text = "Score ${friend.bestFocusScore}"
+                val todayScore = if (friend.todayFocusScoreDate == today) friend.todayFocusScore else 0L
+                val todayMinutes = if (friend.todayFocusScoreDate == today) friend.todayStudyMinutes else 0L
+                itemView.findViewById<TextView>(R.id.tvLeaderboardScore).text = "Score $todayScore"
                 itemView.findViewById<TextView>(R.id.tvLeaderboardMinutes).text =
-                    formatStudyMinutes(friend.totalFocusMinutes)
+                    formatStudyMinutes(todayMinutes)
 
                 bindLeaderboardLevel(
                     userId = friend.uid,

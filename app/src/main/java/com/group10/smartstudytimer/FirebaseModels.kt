@@ -14,6 +14,9 @@ data class UserProfile(
     val avatarId: String = "",
     val bestFocusScore: Long = 0,
     val bestFocusScoreCompletedAt: String = "",
+    val todayFocusScore: Long = 0,
+    val todayFocusScoreDate: String = "",
+    val todayStudyMinutes: Long = 0,
     val updatedAtEpochMillis: Long? = null
 )
 
@@ -22,7 +25,10 @@ data class LeaderboardEntry(
     val displayName: String = "",
     val username: String = "",
     val bestFocusScore: Long = 0,
+    val todayFocusScore: Long = 0,
+    val todayFocusScoreDate: String = "",
     val totalFocusMinutes: Long = 0,
+    val todayStudyMinutes: Long = 0,
     val bestFocusScoreCompletedAt: String = "",
     val avatarId: String = "",
     val updatedAtEpochMillis: Long? = null
@@ -47,7 +53,7 @@ data class RankedLeaderboardEntry(
     val username: String,
     val avatarId: String,
     val score: Long,
-    val totalFocusMinutes: Long
+    val studyMinutes: Long
 )
 
 data class DailyScoreHistoryEntry(
@@ -93,6 +99,9 @@ internal fun DocumentSnapshot.toUserProfile(): UserProfile {
         ),
         bestFocusScore = getLong("bestFocusScore") ?: 0,
         bestFocusScoreCompletedAt = getString("bestFocusScoreCompletedAt").orEmpty(),
+        todayFocusScore = getLong("todayFocusScore") ?: 0,
+        todayFocusScoreDate = getString("todayFocusScoreDate").orEmpty(),
+        todayStudyMinutes = getLong("todayStudyMinutes") ?: 0,
         updatedAtEpochMillis = getTimestamp("updatedAt")?.toDate()?.time
     )
 }
@@ -103,7 +112,10 @@ internal fun DocumentSnapshot.toLeaderboardEntry(): LeaderboardEntry {
         displayName = getString("displayName").orEmpty(),
         username = getString("username").orEmpty(),
         bestFocusScore = getLong("bestFocusScore") ?: 0,
+        todayFocusScore = getLong("todayFocusScore") ?: 0,
+        todayFocusScoreDate = getString("todayFocusScoreDate").orEmpty(),
         totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
+        todayStudyMinutes = getLong("todayStudyMinutes") ?: 0,
         bestFocusScoreCompletedAt = getString("bestFocusScoreCompletedAt").orEmpty(),
         avatarId = AvatarAssets.resolveAvatarId(
             userId = id,
@@ -166,6 +178,9 @@ data class FriendProfile(
     val avatarId: String = "",
     val bestFocusScore: Long = 0,
     val totalFocusMinutes: Long = 0,
+    val todayFocusScore: Long = 0,
+    val todayFocusScoreDate: String = "",
+    val todayStudyMinutes: Long = 0,
     val nickname: String = ""
 )
 

@@ -35,7 +35,7 @@ object BestRecordShareImageGenerator {
         drawTexts(canvas, displayName, bestRecord)
 
         val shareDirectory = File(context.cacheDir, "shares").apply { mkdirs() }
-        val imageFile = File(shareDirectory, "best_record_share.png")
+        val imageFile = File(shareDirectory, "today_record_share.png")
         FileOutputStream(imageFile).use { output ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
         }
@@ -168,7 +168,7 @@ object BestRecordShareImageGenerator {
             textSize = 48f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("Best study record", WIDTH / 2f, 835f, subtitlePaint)
+        canvas.drawText("Today's study record", WIDTH / 2f, 835f, subtitlePaint)
 
         val scoreLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FF617085")
