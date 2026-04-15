@@ -159,6 +159,26 @@ class Profile : Fragment() {
 
                 renderGlobalLeaderboard(globalLeaderboardContainer, allUsers)
             },
+            onError = { tvIncomingRequests.text = "Failed to load requests" }
+        )
+    }
+
+    private fun loadFriendsComparison(tvFriendsComparison: TextView) {
+        firebaseRepository.loadFriends(
+            onSuccess = { friends ->
+                if (friends.isEmpty()) {
+                    tvFriendsComparison.text = "No friends yet"
+                } else {
+                    val sortedFriends = friends.sortedByDescending { it.bestFocusScore }
+                    val text = buildString {
+                        append("Friends Leaderboard\n\n")
+                        sortedFriends.forEachIndexed { index, friend ->
+                            val nameLabel = friend.username.ifBlank { friend.displayName }
+                            append("${index + 1}. $nameLabel — Best Score: ${friend.bestFocusScore}, Total Minutes: ${friend.totalFocusMinutes}\n")
+                        }
+                    }
+                    tvFriendsComparison.text = text
+                }
             onError = {
                 showLeaderboardError(globalLeaderboardContainer, "Failed to load leaderboard")
             }
@@ -270,6 +290,8 @@ class Profile : Fragment() {
                 badgeView.contentDescription = "$displayName ${streakLevel.label} level"
                 levelView.text = streakLevel.label
             },
+            onError = { tvFriendsComparison.text = "Failed to load friends" }
+        )
             onError = {
                 if (!isAdded) return@loadStudySessions
             }
@@ -518,66 +540,5 @@ class Profile : Fragment() {
     private fun dpToPx(dp: Int): Int {
         val density = resources.displayMetrics.density
         return (dp * density).toInt()
-    }
-
-    private fun hideKeyboard() {
-        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        val focused = requireActivity().currentFocus
-        if (focused != null) imm.hideSoftInputFromWindow(focused.windowToken, 0)
-    }
-
-    private fun loadIncomingRequests(tvIncomingRequests: TextView) {
-        firebaseRepository.loadIncomingFriendRequests(
-            onSuccess = { requests ->
-                if (requests.isEmpty()) {
-                    tvIncomingRequests.text = "No pending requests"
-                    tvIncomingRequests.setOnClickListener(null)
-                } else {
-                    val text = buildString {
-                        requests.forEach { request ->
-                            append("From: ${request.fromDisplayName} (${request.fromEmail})\n")
-                            append("Tap to accept this request\n\n")
-                        }
-                    }
-                    tvIncomingRequests.text = text
-                    val firstRequest = requests.first()
-                    tvIncomingRequests.setOnClickListener {
-                        firebaseRepository.acceptFriendRequest(
-                            request = firstRequest,
-                            onSuccess = {
-                                Toast.makeText(requireContext(), "Friend request accepted.", Toast.LENGTH_SHORT).show()
-                                loadIncomingRequests(tvIncomingRequests)
-                                view?.findViewById<TextView>(R.id.tvFriendsComparison)?.let { loadFriendsComparison(it) }
-                            },
-                            onError = {
-                                Toast.makeText(requireContext(), it.message ?: "Failed to accept request.", Toast.LENGTH_SHORT).show()
-                            }
-                        )
-                    }
-                }
-            },
-            onError = { tvIncomingRequests.text = "Failed to load requests" }
-        )
-    }
-
-    private fun loadFriendsComparison(tvFriendsComparison: TextView) {
-        firebaseRepository.loadFriends(
-            onSuccess = { friends ->
-                if (friends.isEmpty()) {
-                    tvFriendsComparison.text = "No friends yet"
-                } else {
-                    val sortedFriends = friends.sortedByDescending { it.bestFocusScore }
-                    val text = buildString {
-                        append("Friends Leaderboard\n\n")
-                        sortedFriends.forEachIndexed { index, friend ->
-                            val nameLabel = friend.username.ifBlank { friend.displayName }
-                            append("${index + 1}. $nameLabel — Best Score: ${friend.bestFocusScore}, Total Minutes: ${friend.totalFocusMinutes}\n")
-                        }
-                    }
-                    tvFriendsComparison.text = text
-                }
-            },
-            onError = { tvFriendsComparison.text = "Failed to load friends" }
-        )
     }
 }
