@@ -14,6 +14,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.card.MaterialCardView
@@ -22,6 +23,7 @@ import java.time.LocalDate
 class Friends : Fragment() {
 
     private val firebaseRepository by lazy { FirebaseRepository() }
+    private val studyRoomRepository by lazy { StudyRoomRepository() }
 
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var containerIncomingRequests: LinearLayout
@@ -29,6 +31,7 @@ class Friends : Fragment() {
     private lateinit var tvRequestBadge: TextView
     private lateinit var containerFriendsComparison: LinearLayout
     private lateinit var tvNewMessageBanner: TextView
+    private lateinit var containerRoomInvites: LinearLayout
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -50,6 +53,10 @@ class Friends : Fragment() {
         tvRequestBadge = view.findViewById(R.id.tvRequestBadge)
         containerFriendsComparison = view.findViewById(R.id.containerFriendsComparison)
         tvNewMessageBanner = view.findViewById(R.id.tvNewMessageBanner)
+        containerRoomInvites = view.findViewById(R.id.containerRoomInvites)
+
+        view.findViewById<Button>(R.id.btnCreateRoom).setOnClickListener { createStudyRoom() }
+        view.findViewById<Button>(R.id.btnJoinRoom).setOnClickListener { showJoinRoomDialog() }
 
         btnSendFriendRequest.setOnClickListener {
             val targetUsername = inputFriendUsername.text.toString().trim()
@@ -91,6 +98,7 @@ class Friends : Fragment() {
         loadIncomingRequests()
         loadFriendsComparison()
         checkUnreadMessages()
+        loadRoomInvites()
     }
 
     private fun checkUnreadMessages() {
@@ -214,6 +222,124 @@ class Friends : Fragment() {
                 swipeRefresh.isRefreshing = false
             }
         )
+    }
+
+    // ── Study Room ────────────────────────────────────────────────────────────
+
+    private fun createStudyRoom() {
+        val avatarId = "" // current user's avatarId resolved by repo
+        studyRoomRepository.createRoom(
+            avatarId = avatarId,
+            onSuccess = { roomId ->
+                if (!isAdded) return@createRoom
+                openStudyRoom(roomId)
+            },
+            onError = {
+                if (!isAdded) return@createRoom
+                Toast.makeText(requireContext(), it.message ?: "Failed to create room", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    private fun showJoinRoomDialog() {
+        val inputView = LayoutInflater.from(requireContext())
+            .inflate(R.layout.dialog_join_room, null, false)
+        val editCode = inputView.findViewById<EditText>(R.id.inputRoomCode)
+        AlertDialog.Builder(requireContext())
+            .setTitle("Join Study Room")
+            .setMessage("Enter the 6-character room code shared by the host.")
+            .setView(inputView)
+            .setPositiveButton("Join") { _, _ ->
+                val code = editCode.text.toString().trim().uppercase()
+                if (code.length != 6) {
+                    Toast.makeText(requireContext(), "Room code must be 6 characters", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                resolveAndJoinRoom(code)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun resolveAndJoinRoom(shortCode: String) {
+        // Query Firestore for a room whose ID ends with the shortcode
+        com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            .collection(StudyRoomRepository.ROOMS_COLLECTION)
+            .whereEqualTo("status", "WAITING")
+            .get()
+            .addOnSuccessListener { snap ->
+                if (!isAdded) return@addOnSuccessListener
+                val match = snap.documents.firstOrNull {
+                    it.id.takeLast(6).uppercase() == shortCode
+                }
+                if (match == null) {
+                    Toast.makeText(requireContext(), "Room \"$shortCode\" not found or already started", Toast.LENGTH_SHORT).show()
+                    return@addOnSuccessListener
+                }
+                studyRoomRepository.joinRoom(
+                    roomId = match.id,
+                    avatarId = "",
+                    onSuccess = { if (isAdded) openStudyRoom(match.id) },
+                    onError = {
+                        if (!isAdded) return@joinRoom
+                        Toast.makeText(requireContext(), it.message ?: "Failed to join room", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+            .addOnFailureListener {
+                if (!isAdded) return@addOnFailureListener
+                Toast.makeText(requireContext(), "Error searching for room", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun loadRoomInvites() {
+        studyRoomRepository.loadPendingRoomInvites(
+            onSuccess = { invites ->
+                if (!isAdded) return@loadPendingRoomInvites
+                containerRoomInvites.removeAllViews()
+                if (invites.isEmpty()) {
+                    containerRoomInvites.visibility = View.GONE
+                    return@loadPendingRoomInvites
+                }
+                containerRoomInvites.visibility = View.VISIBLE
+                val inflater = LayoutInflater.from(requireContext())
+                invites.forEach { invite ->
+                    val itemView = inflater.inflate(R.layout.item_friend_request, containerRoomInvites, false)
+                    itemView.findViewById<TextView>(R.id.tvRequestName).text =
+                        "${invite.fromDisplayName} invited you to a Study Room"
+                    itemView.findViewById<TextView>(R.id.tvRequestSub).text =
+                        "Code: ${invite.roomId.takeLast(6).uppercase()}"
+                    itemView.findViewById<ImageButton>(R.id.btnAccept).setOnClickListener {
+                        studyRoomRepository.dismissRoomInvite(invite.inviteId, onSuccess = {}, onError = {})
+                        studyRoomRepository.joinRoom(
+                            roomId = invite.roomId,
+                            avatarId = "",
+                            onSuccess = { if (isAdded) openStudyRoom(invite.roomId) },
+                            onError = {
+                                if (!isAdded) return@joinRoom
+                                Toast.makeText(requireContext(), it.message ?: "Failed to join", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
+                    itemView.findViewById<ImageButton>(R.id.btnDecline).setOnClickListener {
+                        studyRoomRepository.dismissRoomInvite(
+                            inviteId = invite.inviteId,
+                            onSuccess = { if (isAdded) loadRoomInvites() },
+                            onError = {}
+                        )
+                    }
+                    containerRoomInvites.addView(itemView)
+                }
+            },
+            onError = { /* silently ignore */ }
+        )
+    }
+
+    private fun openStudyRoom(roomId: String) {
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragmentContainer, StudyRoomFragment.newInstance(roomId))
+            .addToBackStack("studyRoom")
+            .commit()
     }
 
     private fun loadFriendsComparison() {

@@ -190,3 +190,59 @@ data class ChatMessage(
     val text: String = "",
     val timestamp: Long = 0
 )
+
+// ── Study Room ──────────────────────────────────────────────────────────────
+
+data class StudyRoom(
+    val roomId: String = "",
+    val hostUid: String = "",
+    val status: String = "WAITING",       // WAITING / COUNTDOWN / ACTIVE / COMPLETED
+    val countdownStartAt: Long = 0,
+    val sessionStartAt: Long = 0,
+    val endedAt: Long = 0,
+    val failedCount: Int = 0
+)
+
+data class RoomParticipant(
+    val uid: String = "",
+    val displayName: String = "",
+    val avatarId: String = "",
+    val status: String = "JOINED",        // JOINED / READY / STUDYING / COMPLETED / FAILED
+    val distractionCount: Int = 0,
+    val joinedAt: Long = 0
+)
+
+data class RoomInvite(
+    val inviteId: String = "",
+    val roomId: String = "",
+    val fromUid: String = "",
+    val fromDisplayName: String = "",
+    val createdAt: Long = 0
+)
+
+internal fun DocumentSnapshot.toStudyRoom(): StudyRoom = StudyRoom(
+    roomId = getString("roomId").orEmpty().ifBlank { id },
+    hostUid = getString("hostUid").orEmpty(),
+    status = getString("status") ?: "WAITING",
+    countdownStartAt = getLong("countdownStartAt") ?: 0L,
+    sessionStartAt = getLong("sessionStartAt") ?: 0L,
+    endedAt = getLong("endedAt") ?: 0L,
+    failedCount = (getLong("failedCount") ?: 0L).toInt()
+)
+
+internal fun DocumentSnapshot.toRoomParticipant(): RoomParticipant = RoomParticipant(
+    uid = getString("uid").orEmpty().ifBlank { id },
+    displayName = getString("displayName").orEmpty(),
+    avatarId = getString("avatarId").orEmpty(),
+    status = getString("status") ?: "JOINED",
+    distractionCount = (getLong("distractionCount") ?: 0L).toInt(),
+    joinedAt = getLong("joinedAt") ?: 0L
+)
+
+internal fun DocumentSnapshot.toRoomInvite(): RoomInvite = RoomInvite(
+    inviteId = getString("inviteId").orEmpty().ifBlank { id },
+    roomId = getString("roomId").orEmpty(),
+    fromUid = getString("fromUid").orEmpty(),
+    fromDisplayName = getString("fromDisplayName").orEmpty(),
+    createdAt = getLong("createdAt") ?: 0L
+)

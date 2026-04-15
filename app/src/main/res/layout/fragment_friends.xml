@@ -29,6 +29,57 @@
                 android:orientation="vertical"
                 android:padding="24dp">
 
+                <!-- ── Study Room ── -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="top"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Study Room"
+                        android:textStyle="bold" />
+
+                    <!-- Room invites from friends -->
+                    <LinearLayout
+                        android:id="@+id/containerRoomInvites"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:orientation="vertical"
+                        android:visibility="gone" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnCreateRoom"
+                            style="@style/Widget.Material3.Button"
+                            android:layout_width="0dp"
+                            android:layout_height="52dp"
+                            android:layout_marginEnd="8dp"
+                            android:layout_weight="1"
+                            android:text="Create Room" />
+
+                        <Button
+                            android:id="@+id/btnJoinRoom"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="52dp"
+                            android:layout_weight="1"
+                            android:text="Join Room" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
                 <!-- ── Add Friend ── -->
                 <LinearLayout
                     android:layout_width="match_parent"
