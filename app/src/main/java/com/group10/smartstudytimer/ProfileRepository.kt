@@ -2,6 +2,7 @@ package com.group10.smartstudytimer
 
 import android.content.Context
 import android.content.Intent
+import java.time.LocalDate
 
 class ProfileRepository(
     context: Context,
@@ -38,9 +39,9 @@ class ProfileRepository(
         )
     }
 
-    fun getBestStudyRecord(): BestStudyRecord? {
+    fun getTodayStudyRecord(): BestStudyRecord? {
         return loadDailyScoreHistoryInternal()
-            .maxWithOrNull(compareBy<DailyScoreHistoryEntry> { it.score }.thenBy { it.date })
+            .firstOrNull { it.date == LocalDate.now().toString() }
             ?.let { BestStudyRecord(focusScore = it.score, completedAt = it.date) }
     }
 
@@ -57,11 +58,13 @@ class ProfileRepository(
                             rank = index + 1,
                             userId = entry.uid,
                             displayName = entry.displayName,
+                            username = entry.username,
                             avatarId = AvatarAssets.resolveAvatarId(
                                 userId = entry.uid,
                                 avatarId = entry.avatarId
                             ),
-                            score = entry.bestFocusScore
+                            score = entry.todayFocusScore,
+                            studyMinutes = entry.todayStudyMinutes
                         )
                     }
                 )
@@ -79,8 +82,8 @@ class ProfileRepository(
         onNoData: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        val bestRecord = getBestStudyRecord()
-        if (bestRecord == null) {
+        val todayRecord = getTodayStudyRecord()
+        if (todayRecord == null) {
             onNoData()
             return
         }
@@ -92,16 +95,16 @@ class ProfileRepository(
                     context = appContext,
                     displayName = resolvedDisplayName,
                     avatarId = profileHeader.avatarId,
-                    bestRecord = bestRecord
+                    bestRecord = todayRecord
                 ).getOrElse { error ->
                     onError(Exception(error))
                     return@loadProfileHeader
                 }
 
                 val shareText = buildString {
-                    appendLine("$resolvedDisplayName's best study record")
-                    appendLine("Score: ${bestRecord.focusScore}")
-                    append("Completed at: ${bestRecord.completedAt}")
+                    appendLine("$resolvedDisplayName's today study record")
+                    appendLine("Score: ${todayRecord.focusScore}")
+                    append("Date: ${todayRecord.completedAt}")
                 }
 
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -122,13 +125,17 @@ class ProfileRepository(
 
     private fun loadDailyScoreHistoryInternal(): List<DailyScoreHistoryEntry> {
         val sessions = statisticsRepository.getRecordedSessions()
-        return StatisticsAggregator.buildDailyPeakScoreRecords(sessions)
-            .map { dailyPeak ->
+        return StatisticsAggregator.buildDailyScoreRecords(sessions)
+            .map { dailyRecord ->
                 DailyScoreHistoryEntry(
-                    date = dailyPeak.date,
-                    score = dailyPeak.focusScore
+                    date = dailyRecord.date,
+                    score = dailyRecord.focusScore,
+                    studyMinutes = dailyRecord.studyMinutes,
+                    interruptionCount = dailyRecord.interruptionCount,
+                    interruptedSeconds = dailyRecord.interruptedSeconds
                 )
             }
             .filter { it.score > 0 }
+            .sortedByDescending { it.date }
     }
 }

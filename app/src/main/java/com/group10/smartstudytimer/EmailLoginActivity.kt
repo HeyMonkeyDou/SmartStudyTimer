@@ -11,7 +11,6 @@ import com.google.android.material.textfield.TextInputEditText
 class EmailLoginActivity : AppCompatActivity() {
 
     private val authRepository by lazy { AuthRepository(this) }
-    private val firebaseRepository by lazy { FirebaseRepository() }
 
     private lateinit var emailField: TextInputEditText
     private lateinit var passwordField: TextInputEditText
@@ -40,18 +39,22 @@ class EmailLoginActivity : AppCompatActivity() {
         val password = passwordField.text.toString()
 
         if (email.isBlank() || password.isBlank()) {
-            showError(getString(R.string.fill_all_fields))
+            showError("Please fill in all fields.")
             return
         }
 
         setLoadingState(true)
-
         authRepository.signInWithEmailAndPassword(
             email = email,
             password = password,
-            onSuccess = { openMainScreen() },
+            onSuccess = {
+                startActivity(Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                })
+                finish()
+            },
             onError = { error ->
-                showError(error.message ?: getString(R.string.login_failed))
+                showError(error.message ?: "Sign in failed. Check your email and password.")
                 setLoadingState(false)
             }
         )
@@ -67,14 +70,5 @@ class EmailLoginActivity : AppCompatActivity() {
         emailField.isEnabled = !loading
         passwordField.isEnabled = !loading
         if (loading) statusText.visibility = View.GONE
-    }
-
-    private fun openMainScreen() {
-        startActivity(
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }
-        )
-        finish()
     }
 }

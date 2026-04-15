@@ -28,7 +28,7 @@ data class StudySessionRecord(
     val endedAtEpochMillis: Long = System.currentTimeMillis(),
     val studyMinutes: Long = 0,
     val interruptionCount: Long = 0,
-    val interruptedMinutes: Long = 0,
+    val interruptedSeconds: Long = 0,
     val completedSessions: Long = 0,
     val status: StudySessionStatus = StudySessionStatus.COMPLETED,
     val mode: StudySessionMode = StudySessionMode.NORMAL,
@@ -172,13 +172,19 @@ class StatisticsRepository(
     }
 
     private fun syncBestFocusScoreToFirebase(sessions: List<StudySessionRecord>) {
-        val bestRecord = StatisticsAggregator.buildDailyPeakScoreRecords(sessions)
+        val dailyRecords = StatisticsAggregator.buildDailyScoreRecords(sessions)
+        val bestRecord = dailyRecords
             .maxWithOrNull(compareBy<DailyStatisticsRecord> { it.focusScore }.thenBy { it.date })
             ?: DailyStatisticsRecord()
+        val today = LocalDate.now().toString()
+        val todayRecord = dailyRecords.firstOrNull { it.date == today } ?: DailyStatisticsRecord(date = today)
 
         firebaseRepository.updateCurrentBestFocusScore(
             bestFocusScore = bestRecord.focusScore,
-            bestFocusScoreCompletedAt = bestRecord.date
+            bestFocusScoreCompletedAt = bestRecord.date,
+            todayFocusScore = todayRecord.focusScore,
+            todayFocusScoreDate = today,
+            todayStudyMinutes = todayRecord.studyMinutes
         )
     }
 
@@ -221,7 +227,7 @@ object StatisticsAggregator {
             focusScore = todayRecord.focusScore,
             todayStudyMinutes = todayRecord.studyMinutes,
             todayInterruptionCount = todayRecord.interruptionCount,
-            todayInterruptedMinutes = todayRecord.interruptedMinutes,
+            todayInterruptedSeconds = todayRecord.interruptedSeconds,
             totalCompletedSessions = completedSessions,
             thisWeekCompletedSessions = thisWeekCompletedSessions,
             calendarMonth = month.toMonthLabel(),
@@ -236,19 +242,19 @@ object StatisticsAggregator {
         val dailySessions = sessions.filter { it.toLocalDate() == date }
         val studyMinutes = dailySessions.sumOf { it.studyMinutes }
         val interruptionCount = dailySessions.sumOf { it.interruptionCount }
-        val interruptedMinutes = dailySessions.sumOf { it.interruptedMinutes }
+        val interruptedSeconds = dailySessions.sumOf { it.interruptedSeconds }
         val completedSessions = dailySessions.sumOf { it.completedSessions }
 
         return DailyStatisticsRecord(
             date = date.toString(),
             studyMinutes = studyMinutes,
             interruptionCount = interruptionCount,
-            interruptedMinutes = interruptedMinutes,
+            interruptedSeconds = interruptedSeconds,
             completedSessions = completedSessions,
             focusScore = calculateFocusScore(
                 studyMinutes = studyMinutes,
                 interruptionCount = interruptionCount,
-                interruptedMinutes = interruptedMinutes,
+                interruptedSeconds = interruptedSeconds,
                 completedSessions = completedSessions
             )
         )
@@ -263,9 +269,18 @@ object StatisticsAggregator {
             .filter { record ->
                 record.studyMinutes > 0 ||
                     record.interruptionCount > 0 ||
-                    record.interruptedMinutes > 0 ||
+                    record.interruptedSeconds > 0 ||
                     record.completedSessions > 0
             }
+    }
+
+    fun buildDailyScoreRecords(sessions: List<StudySessionRecord>): List<DailyStatisticsRecord> {
+        return sessions
+            .mapNotNull { it.toLocalDate() }
+            .distinct()
+            .sorted()
+            .map { date -> buildDailyStatistics(sessions, date) }
+            .filter { it.focusScore > 0 }
     }
 
     fun buildDailyPeakScoreRecords(sessions: List<StudySessionRecord>): List<DailyStatisticsRecord> {
@@ -276,12 +291,12 @@ object StatisticsAggregator {
                     date = date.toString(),
                     studyMinutes = session.studyMinutes,
                     interruptionCount = session.interruptionCount,
-                    interruptedMinutes = session.interruptedMinutes,
+                    interruptedSeconds = session.interruptedSeconds,
                     completedSessions = session.completedSessions,
                     focusScore = calculateFocusScore(
                         studyMinutes = session.studyMinutes,
                         interruptionCount = session.interruptionCount,
-                        interruptedMinutes = session.interruptedMinutes,
+                        interruptedSeconds = session.interruptedSeconds,
                         completedSessions = session.completedSessions
                     )
                 )
@@ -300,7 +315,7 @@ object StatisticsAggregator {
     fun calculateFocusScore(
         studyMinutes: Long,
         interruptionCount: Long,
-        interruptedMinutes: Long,
+        interruptedSeconds: Long,
         completedSessions: Long
     ): Long {
         if (studyMinutes <= 0 && completedSessions <= 0) {
@@ -311,7 +326,7 @@ object StatisticsAggregator {
             minOf(30L, studyMinutes / 2) +
             minOf(20L, completedSessions * 10) -
             minOf(20L, interruptionCount * 5) -
-            minOf(20L, interruptedMinutes)
+            minOf(20L, interruptedSeconds / 60)
 
         return score.coerceIn(0L, 100L)
     }
@@ -329,7 +344,7 @@ private fun StudySessionRecord.toJson(): JSONObject {
         .put("endedAtEpochMillis", endedAtEpochMillis)
         .put("studyMinutes", studyMinutes)
         .put("interruptionCount", interruptionCount)
-        .put("interruptedMinutes", interruptedMinutes)
+        .put("interruptedSeconds", interruptedSeconds)
         .put("completedSessions", completedSessions)
         .put("status", status.name)
         .put("mode", mode.name)
@@ -342,7 +357,11 @@ private fun JSONObject.toStudySessionRecord(): StudySessionRecord {
         endedAtEpochMillis = optLong("endedAtEpochMillis", System.currentTimeMillis()),
         studyMinutes = optLong("studyMinutes", 0),
         interruptionCount = optLong("interruptionCount", 0),
-        interruptedMinutes = optLong("interruptedMinutes", 0),
+        interruptedSeconds = when {
+            has("interruptedSeconds") -> optLong("interruptedSeconds", 0)
+            has("interruptedMinutes") -> optLong("interruptedMinutes", 0) * 60
+            else -> 0
+        },
         completedSessions = optLong("completedSessions", 0),
         status = StudySessionStatus.valueOf(optString("status", StudySessionStatus.COMPLETED.name)),
         mode = StudySessionMode.valueOf(optString("mode", StudySessionMode.NORMAL.name)),

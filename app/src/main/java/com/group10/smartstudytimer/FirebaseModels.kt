@@ -14,13 +14,21 @@ data class UserProfile(
     val avatarId: String = "",
     val bestFocusScore: Long = 0,
     val bestFocusScoreCompletedAt: String = "",
+    val todayFocusScore: Long = 0,
+    val todayFocusScoreDate: String = "",
+    val todayStudyMinutes: Long = 0,
     val updatedAtEpochMillis: Long? = null
 )
 
 data class LeaderboardEntry(
     val uid: String = "",
     val displayName: String = "",
+    val username: String = "",
     val bestFocusScore: Long = 0,
+    val todayFocusScore: Long = 0,
+    val todayFocusScoreDate: String = "",
+    val totalFocusMinutes: Long = 0,
+    val todayStudyMinutes: Long = 0,
     val bestFocusScoreCompletedAt: String = "",
     val avatarId: String = "",
     val updatedAtEpochMillis: Long? = null
@@ -42,20 +50,25 @@ data class RankedLeaderboardEntry(
     val rank: Int,
     val userId: String,
     val displayName: String,
+    val username: String,
     val avatarId: String,
-    val score: Long
+    val score: Long,
+    val studyMinutes: Long
 )
 
 data class DailyScoreHistoryEntry(
     val date: String,
-    val score: Long
+    val score: Long,
+    val studyMinutes: Long,
+    val interruptionCount: Long,
+    val interruptedSeconds: Long
 )
 
 data class DailyStatisticsRecord(
     val date: String = "",
     val studyMinutes: Long = 0,
     val interruptionCount: Long = 0,
-    val interruptedMinutes: Long = 0,
+    val interruptedSeconds: Long = 0,
     val completedSessions: Long = 0,
     val focusScore: Long = 0
 )
@@ -66,7 +79,7 @@ data class StudyStatistics(
     val focusScore: Long = 0,
     val todayStudyMinutes: Long = 0,
     val todayInterruptionCount: Long = 0,
-    val todayInterruptedMinutes: Long = 0,
+    val todayInterruptedSeconds: Long = 0,
     val totalCompletedSessions: Long = 0,
     val thisWeekCompletedSessions: Long = 0,
     val calendarMonth: String = "",
@@ -86,6 +99,9 @@ internal fun DocumentSnapshot.toUserProfile(): UserProfile {
         ),
         bestFocusScore = getLong("bestFocusScore") ?: 0,
         bestFocusScoreCompletedAt = getString("bestFocusScoreCompletedAt").orEmpty(),
+        todayFocusScore = getLong("todayFocusScore") ?: 0,
+        todayFocusScoreDate = getString("todayFocusScoreDate").orEmpty(),
+        todayStudyMinutes = getLong("todayStudyMinutes") ?: 0,
         updatedAtEpochMillis = getTimestamp("updatedAt")?.toDate()?.time
     )
 }
@@ -94,7 +110,12 @@ internal fun DocumentSnapshot.toLeaderboardEntry(): LeaderboardEntry {
     return LeaderboardEntry(
         uid = id,
         displayName = getString("displayName").orEmpty(),
+        username = getString("username").orEmpty(),
         bestFocusScore = getLong("bestFocusScore") ?: 0,
+        todayFocusScore = getLong("todayFocusScore") ?: 0,
+        todayFocusScoreDate = getString("todayFocusScoreDate").orEmpty(),
+        totalFocusMinutes = getLong("totalFocusMinutes") ?: 0,
+        todayStudyMinutes = getLong("todayStudyMinutes") ?: 0,
         bestFocusScoreCompletedAt = getString("bestFocusScoreCompletedAt").orEmpty(),
         avatarId = AvatarAssets.resolveAvatarId(
             userId = id,
@@ -111,7 +132,7 @@ internal fun StudySessionRecord.toFirestoreMap(): HashMap<String, Any> {
         "endedAtTimestamp" to Timestamp(Date(endedAtEpochMillis)),
         "studyMinutes" to studyMinutes,
         "interruptionCount" to interruptionCount,
-        "interruptedMinutes" to interruptedMinutes,
+        "interruptedSeconds" to interruptedSeconds,
         "completedSessions" to completedSessions,
         "status" to status.name,
         "mode" to mode.name,
@@ -125,7 +146,8 @@ internal fun DocumentSnapshot.toStudySessionRecord(): StudySessionRecord {
         endedAtEpochMillis = getLong("endedAtEpochMillis") ?: 0,
         studyMinutes = getLong("studyMinutes") ?: 0,
         interruptionCount = getLong("interruptionCount") ?: 0,
-        interruptedMinutes = getLong("interruptedMinutes") ?: 0,
+        interruptedSeconds = getLong("interruptedSeconds")
+            ?: ((getLong("interruptedMinutes") ?: 0) * 60),
         completedSessions = getLong("completedSessions") ?: 0,
         status = runCatching {
             StudySessionStatus.valueOf(getString("status") ?: StudySessionStatus.COMPLETED.name)
@@ -155,5 +177,16 @@ data class FriendProfile(
     val username: String = "",
     val avatarId: String = "",
     val bestFocusScore: Long = 0,
-    val totalFocusMinutes: Long = 0
+    val totalFocusMinutes: Long = 0,
+    val todayFocusScore: Long = 0,
+    val todayFocusScoreDate: String = "",
+    val todayStudyMinutes: Long = 0,
+    val nickname: String = ""
+)
+
+data class ChatMessage(
+    val messageId: String = "",
+    val senderId: String = "",
+    val text: String = "",
+    val timestamp: Long = 0
 )

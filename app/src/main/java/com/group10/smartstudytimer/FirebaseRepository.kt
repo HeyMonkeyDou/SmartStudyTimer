@@ -1,9 +1,11 @@
 package com.group10.smartstudytimer
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import java.time.LocalDate
 import kotlin.text.get
 import kotlin.text.set
 
@@ -83,17 +85,68 @@ class FirebaseRepository(
                         saveUserProfile(
                             profile = UserProfile(
                                 uid = uid,
-                                displayName = currentUser?.displayName
+                                displayName = existingProfile?.displayName
                                     ?.takeIf { it.isNotBlank() }
-                                    ?: existingProfile?.displayName.orEmpty(),
+                                    ?: currentUser?.displayName.orEmpty(),
                                 email = currentUser?.email.orEmpty(),
                                 username = existingProfile?.username.orEmpty(),
                                 totalFocusMinutes = existingProfile?.totalFocusMinutes ?: 0L,
                                 avatarId = existingProfile?.avatarId.orEmpty(),
                                 bestFocusScore = existingProfile?.bestFocusScore ?: 0L,
-                                bestFocusScoreCompletedAt = existingProfile?.bestFocusScoreCompletedAt.orEmpty()
+                                bestFocusScoreCompletedAt = existingProfile?.bestFocusScoreCompletedAt.orEmpty(),
+                                todayFocusScore = existingProfile?.todayFocusScore ?: 0L,
+                                todayFocusScoreDate = existingProfile?.todayFocusScoreDate.orEmpty(),
+                                todayStudyMinutes = existingProfile?.todayStudyMinutes ?: 0L
                             ),
                             onSuccess = onSuccess,
+                            onError = onError
+                        )
+                    },
+                    onError = onError
+                )
+            },
+            onError = onError
+        )
+    }
+
+    fun updateCurrentUserProfileSettings(
+        displayName: String,
+        avatarId: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { uid ->
+                loadUserProfile(
+                    uid = uid,
+                    onSuccess = { existingProfile ->
+                        val resolvedDisplayName = displayName.trim()
+                            .ifBlank { existingProfile?.displayName.orEmpty().ifBlank { uid.take(6) } }
+                        val resolvedAvatarId = AvatarAssets.resolveAvatarId(uid, avatarId)
+
+                        saveUserProfile(
+                            profile = UserProfile(
+                                uid = uid,
+                                displayName = resolvedDisplayName,
+                                email = auth.currentUser?.email.orEmpty(),
+                                username = existingProfile?.username.orEmpty(),
+                                totalFocusMinutes = existingProfile?.totalFocusMinutes ?: 0L,
+                                avatarId = resolvedAvatarId,
+                                bestFocusScore = existingProfile?.bestFocusScore ?: 0L,
+                                bestFocusScoreCompletedAt = existingProfile?.bestFocusScoreCompletedAt.orEmpty(),
+                                todayFocusScore = existingProfile?.todayFocusScore ?: 0L,
+                                todayFocusScoreDate = existingProfile?.todayFocusScoreDate.orEmpty(),
+                                todayStudyMinutes = existingProfile?.todayStudyMinutes ?: 0L
+                            ),
+                            onSuccess = {
+                                auth.currentUser?.updateProfile(
+                                    UserProfileChangeRequest.Builder()
+                                        .setDisplayName(resolvedDisplayName)
+                                        .build()
+                                )?.addOnCompleteListener {
+                                    onSuccess()
+                                } ?: onSuccess()
+                            },
                             onError = onError
                         )
                     },
@@ -119,6 +172,9 @@ class FirebaseRepository(
             "avatarId" to resolvedAvatarId,
             "bestFocusScore" to profile.bestFocusScore,
             "bestFocusScoreCompletedAt" to profile.bestFocusScoreCompletedAt,
+            "todayFocusScore" to profile.todayFocusScore,
+            "todayFocusScoreDate" to profile.todayFocusScoreDate,
+            "todayStudyMinutes" to profile.todayStudyMinutes,
             "updatedAt" to FieldValue.serverTimestamp()
         )
 
@@ -162,12 +218,20 @@ class FirebaseRepository(
         onSuccess: (List<LeaderboardEntry>) -> Unit,
         onError: (Exception) -> Unit
     ) {
+        val today = LocalDate.now().toString()
         firestore.collection(USERS_COLLECTION)
-            .orderBy("bestFocusScore", Query.Direction.DESCENDING)
-            .limit(limit)
+            .whereEqualTo("todayFocusScoreDate", today)
             .get()
             .addOnSuccessListener { result ->
-                onSuccess(result.documents.map { it.toLeaderboardEntry() })
+                onSuccess(
+                    result.documents
+                        .map { it.toLeaderboardEntry() }
+                        .sortedWith(
+                            compareByDescending<LeaderboardEntry> { it.todayFocusScore }
+                                .thenByDescending { it.todayStudyMinutes }
+                        )
+                        .take(limit.toInt())
+                )
             }
             .addOnFailureListener { error -> onError(error) }
     }
@@ -175,6 +239,9 @@ class FirebaseRepository(
     fun updateCurrentBestFocusScore(
         bestFocusScore: Long,
         bestFocusScoreCompletedAt: String,
+        todayFocusScore: Long,
+        todayFocusScoreDate: String,
+        todayStudyMinutes: Long,
         onSuccess: () -> Unit = {},
         onError: (Exception) -> Unit = {}
     ) {
@@ -188,6 +255,9 @@ class FirebaseRepository(
                             "avatarId" to AvatarAssets.resolveAvatarId(uid, profile?.avatarId),
                             "bestFocusScore" to bestFocusScore,
                             "bestFocusScoreCompletedAt" to bestFocusScoreCompletedAt,
+                            "todayFocusScore" to todayFocusScore,
+                            "todayFocusScoreDate" to todayFocusScoreDate,
+                            "todayStudyMinutes" to todayStudyMinutes,
                             "updatedAt" to FieldValue.serverTimestamp()
                         )
 
@@ -577,7 +647,8 @@ class FirebaseRepository(
                     .addOnSuccessListener { result ->
                         val basicFriends = result.documents.mapNotNull { doc ->
                             val uid = doc.getString("uid").orEmpty()
-                            if (uid.isBlank()) null else uid
+                            val nickname = doc.getString("nickname").orEmpty()
+                            if (uid.isBlank()) null else Pair(uid, nickname)
                         }
 
                         if (basicFriends.isEmpty()) {
@@ -585,20 +656,27 @@ class FirebaseRepository(
                             return@addOnSuccessListener
                         }
 
+                        val nicknameMap = basicFriends.toMap()
+                        val uidList = basicFriends.map { it.first }
+
                         firestore.collection(USERS_COLLECTION)
-                            .whereIn(com.google.firebase.firestore.FieldPath.documentId(), basicFriends)
+                            .whereIn(com.google.firebase.firestore.FieldPath.documentId(), uidList)
                             .get()
                             .addOnSuccessListener { userDocs ->
                                 val friends = userDocs.documents.map { doc ->
-                                    FriendProfile(
-                                        uid = doc.id,
-                                        displayName = doc.getString("displayName").orEmpty(),
-                                        email = doc.getString("email").orEmpty(),
-                                        username = doc.getString("username").orEmpty(),
-                                        avatarId = AvatarAssets.resolveAvatarId(doc.id, doc.getString("avatarId")),
-                                        bestFocusScore = doc.getLong("bestFocusScore") ?: 0L,
-                                        totalFocusMinutes = doc.getLong("totalFocusMinutes") ?: 0L
-                                    )
+                                FriendProfile(
+                                    uid = doc.id,
+                                    displayName = doc.getString("displayName").orEmpty(),
+                                    email = doc.getString("email").orEmpty(),
+                                    username = doc.getString("username").orEmpty(),
+                                    avatarId = AvatarAssets.resolveAvatarId(doc.id, doc.getString("avatarId")),
+                                    bestFocusScore = doc.getLong("bestFocusScore") ?: 0L,
+                                    totalFocusMinutes = doc.getLong("totalFocusMinutes") ?: 0L,
+                                    todayFocusScore = doc.getLong("todayFocusScore") ?: 0L,
+                                    todayFocusScoreDate = doc.getString("todayFocusScoreDate").orEmpty(),
+                                    todayStudyMinutes = doc.getLong("todayStudyMinutes") ?: 0L,
+                                    nickname = nicknameMap[doc.id].orEmpty()
+                                )
                                 }
                                 onSuccess(friends)
                             }
@@ -610,8 +688,345 @@ class FirebaseRepository(
         )
     }
 
+    fun updateUsername(
+        username: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { uid ->
+                firestore.collection(USERS_COLLECTION)
+                    .document(uid)
+                    .set(
+                        mapOf(
+                            "username" to username,
+                            "displayName" to username,
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        ),
+                        com.google.firebase.firestore.SetOptions.merge()
+                    )
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun isUsernameAvailable(
+        username: String,
+        onResult: (Boolean) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        firestore.collection(USERS_COLLECTION)
+            .whereEqualTo("username", username)
+            .limit(1)
+            .get()
+            .addOnSuccessListener { result -> onResult(result.isEmpty) }
+            .addOnFailureListener { onError(it) }
+    }
+
+    fun sendFriendRequestByUsername(
+        targetUsername: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val currentUser = auth.currentUser
+                val currentDisplayName = currentUser?.displayName ?: currentUid.take(6)
+                val currentEmail = currentUser?.email ?: ""
+
+                firestore.collection(USERS_COLLECTION)
+                    .whereEqualTo("displayName", targetUsername)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        if (result.isEmpty) {
+                            onError(Exception("User \"$targetUsername\" not found"))
+                            return@addOnSuccessListener
+                        }
+                        val targetDoc = result.documents.first()
+                        val targetUid = targetDoc.id
+                        if (targetUid == currentUid) {
+                            onError(Exception("You cannot add yourself"))
+                            return@addOnSuccessListener
+                        }
+                        val requestRef = firestore.collection(FRIEND_REQUESTS_COLLECTION).document()
+                        requestRef.set(hashMapOf(
+                            "requestId" to requestRef.id,
+                            "fromUid" to currentUid,
+                            "fromDisplayName" to currentDisplayName,
+                            "fromEmail" to currentEmail,
+                            "toUid" to targetUid,
+                            "toEmail" to targetDoc.getString("email").orEmpty(),
+                            "status" to "pending",
+                            "createdAtEpochMillis" to System.currentTimeMillis()
+                        ))
+                        .addOnSuccessListener { onSuccess() }
+                        .addOnFailureListener { onError(it) }
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun removeFriendByUsername(
+        targetUsername: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                firestore.collection(USERS_COLLECTION)
+                    .whereEqualTo("displayName", targetUsername)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        if (result.isEmpty) {
+                            onError(Exception("User \"$targetUsername\" not found"))
+                            return@addOnSuccessListener
+                        }
+                        val targetUid = result.documents.first().id
+                        if (targetUid == currentUid) {
+                            onError(Exception("You cannot remove yourself"))
+                            return@addOnSuccessListener
+                        }
+                        val batch = firestore.batch()
+                        batch.delete(firestore.collection(USERS_COLLECTION).document(currentUid).collection(FRIENDS_SUBCOLLECTION).document(targetUid))
+                        batch.delete(firestore.collection(USERS_COLLECTION).document(targetUid).collection(FRIENDS_SUBCOLLECTION).document(currentUid))
+                        batch.commit()
+                            .addOnSuccessListener { onSuccess() }
+                            .addOnFailureListener { onError(it) }
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun removeFriendByEmail(
+        targetEmail: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val normalizedEmail = targetEmail.trim().lowercase()
+
+                firestore.collection(USERS_COLLECTION)
+                    .whereEqualTo("email", normalizedEmail)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        if (result.isEmpty) {
+                            onError(Exception("Friend not found"))
+                            return@addOnSuccessListener
+                        }
+
+                        val targetDoc = result.documents.first()
+                        val targetUid = targetDoc.id
+
+                        if (targetUid == currentUid) {
+                            onError(Exception("You cannot remove yourself"))
+                            return@addOnSuccessListener
+                        }
+
+                        val currentUserFriendRef = firestore.collection(USERS_COLLECTION)
+                            .document(currentUid)
+                            .collection(FRIENDS_SUBCOLLECTION)
+                            .document(targetUid)
+
+                        val targetUserFriendRef = firestore.collection(USERS_COLLECTION)
+                            .document(targetUid)
+                            .collection(FRIENDS_SUBCOLLECTION)
+                            .document(currentUid)
+
+                        val batch = firestore.batch()
+                        batch.delete(currentUserFriendRef)
+                        batch.delete(targetUserFriendRef)
+
+                        batch.commit()
+                            .addOnSuccessListener { onSuccess() }
+                            .addOnFailureListener { onError(it) }
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
 
 
+    fun declineFriendRequest(
+        requestId: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        firestore.collection(FRIEND_REQUESTS_COLLECTION)
+            .document(requestId)
+            .delete()
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it) }
+    }
+
+    fun removeFriendByUid(
+        friendUid: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val batch = firestore.batch()
+                batch.delete(
+                    firestore.collection(USERS_COLLECTION).document(currentUid)
+                        .collection(FRIENDS_SUBCOLLECTION).document(friendUid)
+                )
+                batch.delete(
+                    firestore.collection(USERS_COLLECTION).document(friendUid)
+                        .collection(FRIENDS_SUBCOLLECTION).document(currentUid)
+                )
+                batch.commit()
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun updateFriendNickname(
+        friendUid: String,
+        nickname: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                firestore.collection(USERS_COLLECTION)
+                    .document(currentUid)
+                    .collection(FRIENDS_SUBCOLLECTION)
+                    .document(friendUid)
+                    .set(mapOf("nickname" to nickname), com.google.firebase.firestore.SetOptions.merge())
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun sendChatMessage(
+        friendUid: String,
+        text: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
+                val msgRef = firestore.collection(CHATS_COLLECTION)
+                    .document(chatId)
+                    .collection(MESSAGES_SUBCOLLECTION)
+                    .document()
+                val payload = hashMapOf(
+                    "messageId" to msgRef.id,
+                    "senderId" to currentUid,
+                    "text" to text,
+                    "timestamp" to System.currentTimeMillis()
+                )
+                msgRef.set(payload)
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun listenToChatMessages(
+        friendUid: String,
+        onUpdate: (List<ChatMessage>) -> Unit,
+        onError: (Exception) -> Unit
+    ): com.google.firebase.firestore.ListenerRegistration {
+        val currentUid = auth.currentUser?.uid ?: run {
+            onError(Exception("Not signed in"))
+            return firestore.collection("_dummy").addSnapshotListener { _, _ -> }
+        }
+        val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
+        return firestore.collection(CHATS_COLLECTION)
+            .document(chatId)
+            .collection(MESSAGES_SUBCOLLECTION)
+            .orderBy("timestamp", Query.Direction.ASCENDING)
+            .limit(100)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) { onError(error); return@addSnapshotListener }
+                val messages = snapshot?.documents?.map { doc ->
+                    ChatMessage(
+                        messageId = doc.getString("messageId").orEmpty(),
+                        senderId = doc.getString("senderId").orEmpty(),
+                        text = doc.getString("text").orEmpty(),
+                        timestamp = doc.getLong("timestamp") ?: 0L
+                    )
+                } ?: emptyList()
+                onUpdate(messages)
+            }
+    }
+
+    fun getLastChatMessage(
+        friendUid: String,
+        onSuccess: (ChatMessage?) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
+                firestore.collection(CHATS_COLLECTION)
+                    .document(chatId)
+                    .collection(MESSAGES_SUBCOLLECTION)
+                    .orderBy("timestamp", Query.Direction.DESCENDING)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        val msg = result.documents.firstOrNull()?.let { doc ->
+                            ChatMessage(
+                                messageId = doc.getString("messageId").orEmpty(),
+                                senderId = doc.getString("senderId").orEmpty(),
+                                text = doc.getString("text").orEmpty(),
+                                timestamp = doc.getLong("timestamp") ?: 0L
+                            )
+                        }
+                        onSuccess(msg)
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun getUnreadMessageCount(
+        friendUid: String,
+        sinceTimestamp: Long,
+        onSuccess: (Int) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        ensureSignedInUser(
+            onSuccess = { currentUid ->
+                val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
+                firestore.collection(CHATS_COLLECTION)
+                    .document(chatId)
+                    .collection(MESSAGES_SUBCOLLECTION)
+                    .whereGreaterThan("timestamp", sinceTimestamp)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        val count = result.documents.count { doc ->
+                            doc.getString("senderId") != currentUid
+                        }
+                        onSuccess(count)
+                    }
+                    .addOnFailureListener { onError(it) }
+            },
+            onError = onError
+        )
+    }
+
+    fun getCurrentUserUid(): String? = auth.currentUser?.uid
 
     companion object {
         private const val USERS_COLLECTION = "users"
@@ -619,6 +1034,8 @@ class FirebaseRepository(
         private const val SESSION_ITEMS_SUBCOLLECTION = "items"
         private const val FRIEND_REQUESTS_COLLECTION = "friend_requests"
         private const val FRIENDS_SUBCOLLECTION = "friends"
+        private const val CHATS_COLLECTION = "chats"
+        private const val MESSAGES_SUBCOLLECTION = "messages"
     }
 
     private fun sessionDocuments(uid: String) =

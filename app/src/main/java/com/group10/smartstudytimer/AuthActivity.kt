@@ -49,11 +49,11 @@ class AuthActivity : AppCompatActivity() {
 
         signInButton.setOnClickListener { launchGoogleSignIn() }
 
-        findViewById<MaterialButton>(R.id.registerAccountButton).setOnClickListener {
+        findViewById<android.widget.Button>(R.id.registerAccountButton).setOnClickListener {
             startActivity(Intent(this, RegisterActivity::class.java))
         }
 
-        findViewById<MaterialButton>(R.id.emailSignInButton).setOnClickListener {
+        findViewById<android.widget.Button>(R.id.emailSignInButton).setOnClickListener {
             startActivity(Intent(this, EmailLoginActivity::class.java))
         }
     }

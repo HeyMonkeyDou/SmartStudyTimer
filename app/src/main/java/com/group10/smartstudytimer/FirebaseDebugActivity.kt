@@ -41,7 +41,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
     private lateinit var sessionDateInput: EditText
     private lateinit var sessionStudyMinutesInput: EditText
     private lateinit var sessionInterruptionCountInput: EditText
-    private lateinit var sessionInterruptedMinutesInput: EditText
+    private lateinit var sessionInterruptedSecondsInput: EditText
     private lateinit var sessionCompletedSessionsInput: EditText
     private lateinit var sessionStatusSpinner: Spinner
     private lateinit var sessionModeSpinner: Spinner
@@ -66,14 +66,14 @@ class FirebaseDebugActivity : AppCompatActivity() {
         sessionDateInput = findViewById(R.id.sessionDateInput)
         sessionStudyMinutesInput = findViewById(R.id.sessionStudyMinutesInput)
         sessionInterruptionCountInput = findViewById(R.id.sessionInterruptionCountInput)
-        sessionInterruptedMinutesInput = findViewById(R.id.sessionInterruptedMinutesInput)
+        sessionInterruptedSecondsInput = findViewById(R.id.sessionInterruptedMinutesInput)
         sessionCompletedSessionsInput = findViewById(R.id.sessionCompletedSessionsInput)
         sessionStatusSpinner = findViewById(R.id.sessionStatusSpinner)
         sessionModeSpinner = findViewById(R.id.sessionModeSpinner)
         sessionNoteInput = findViewById(R.id.sessionNoteInput)
         sessionsInput = findViewById(R.id.sessionsInput)
         setupSessionSelectors()
-        renderAvatarPreview(AvatarAssets.CAT)
+        renderAvatarPreview(AvatarAssets.defaultAvatarId(this))
 
         findViewById<Button>(R.id.signInButton).setOnClickListener { signIn() }
         findViewById<Button>(R.id.saveUserButton).setOnClickListener { saveUser() }
@@ -188,18 +188,18 @@ class FirebaseDebugActivity : AppCompatActivity() {
     }
 
     private fun loadBestRecord() {
-        val bestRecord = profileRepository.getBestStudyRecord()
+        val bestRecord = profileRepository.getTodayStudyRecord()
         profilePreviewText.text = if (bestRecord == null) {
-            "bestStudyRecord: null"
+            "todayStudyRecord: null"
         } else {
             buildString {
-                appendLine("bestStudyRecord:")
+                appendLine("todayStudyRecord:")
                 appendLine("focusScore: ${bestRecord.focusScore}")
                 appendLine("completedAt: ${bestRecord.completedAt}")
             }.trim()
         }
-        appendLog("Best study record loaded.")
-        setStatus("Best study record loaded")
+        appendLog("Today study record loaded.")
+        setStatus("Today study record loaded")
     }
 
     private fun loadProfileLeaderboard() {
@@ -244,19 +244,19 @@ class FirebaseDebugActivity : AppCompatActivity() {
     }
 
     private fun shareBestRecordImage() {
-        setStatus("Preparing best record image...")
+        setStatus("Preparing today record image...")
         profileRepository.shareBestRecordImage(
             onSuccess = {
-                appendLog("Best record image share sheet opened.")
-                setStatus("Best record image shared")
+                appendLog("Today record image share sheet opened.")
+                setStatus("Today record image shared")
             },
             onNoData = {
-                appendLog("No best study record available to share as image.")
-                setStatus("No best study record")
-                Toast.makeText(this, "No best study record available to share", Toast.LENGTH_SHORT).show()
+                appendLog("No today study record available to share as image.")
+                setStatus("No today study record")
+                Toast.makeText(this, "No today study record available to share", Toast.LENGTH_SHORT).show()
             },
             onError = { error ->
-                showError("Share best record image failed", error)
+                showError("Share today record image failed", error)
             }
         )
     }
@@ -357,7 +357,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
         )
         sessionStudyMinutesInput.setText(record.studyMinutes.toString())
         sessionInterruptionCountInput.setText(record.interruptionCount.toString())
-        sessionInterruptedMinutesInput.setText(record.interruptedMinutes.toString())
+        sessionInterruptedSecondsInput.setText(record.interruptedSeconds.toString())
         sessionCompletedSessionsInput.setText(record.completedSessions.toString())
         sessionStatusSpinner.setSelection(StudySessionStatus.entries.indexOf(record.status))
         sessionModeSpinner.setSelection(StudySessionMode.entries.indexOf(record.mode))
@@ -368,7 +368,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
         sessionDateInput.setText(LocalDate.now().toString())
         sessionStudyMinutesInput.setText("25")
         sessionInterruptionCountInput.setText("0")
-        sessionInterruptedMinutesInput.setText("0")
+        sessionInterruptedSecondsInput.setText("0")
         sessionCompletedSessionsInput.setText("1")
         sessionStatusSpinner.setSelection(StudySessionStatus.entries.indexOf(StudySessionStatus.COMPLETED))
         sessionModeSpinner.setSelection(StudySessionMode.entries.indexOf(StudySessionMode.NORMAL))
@@ -384,7 +384,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
             .toEpochMilli()
         val studyMinutes = parseLong(sessionStudyMinutesInput, "sessionStudyMinutes") ?: return null
         val interruptionCount = parseLong(sessionInterruptionCountInput, "sessionInterruptionCount") ?: return null
-        val interruptedMinutes = parseLong(sessionInterruptedMinutesInput, "sessionInterruptedMinutes") ?: return null
+        val interruptedSeconds = parseLong(sessionInterruptedSecondsInput, "sessionInterruptedSeconds") ?: return null
         val completedSessions = parseLong(sessionCompletedSessionsInput, "sessionCompletedSessions") ?: return null
         val status = sessionStatusSpinner.selectedItem as StudySessionStatus
         val mode = sessionModeSpinner.selectedItem as StudySessionMode
@@ -395,7 +395,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
             endedAtEpochMillis = endedAtEpochMillis,
             studyMinutes = studyMinutes,
             interruptionCount = interruptionCount,
-            interruptedMinutes = interruptedMinutes,
+            interruptedSeconds = interruptedSeconds,
             completedSessions = completedSessions,
             status = status,
             mode = mode,
@@ -423,7 +423,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
             appendLine("focusScore: ${statistics.focusScore}")
             appendLine("todayStudyMinutes: ${statistics.todayStudyMinutes}")
             appendLine("todayInterruptionCount: ${statistics.todayInterruptionCount}")
-            appendLine("todayInterruptedMinutes: ${statistics.todayInterruptedMinutes}")
+            appendLine("todayInterruptedSeconds: ${statistics.todayInterruptedSeconds}")
             appendLine("totalCompletedSessions: ${statistics.totalCompletedSessions}")
             appendLine("thisWeekCompletedSessions: ${statistics.thisWeekCompletedSessions}")
             appendLine("calendarMonth: ${statistics.calendarMonth}")
@@ -439,7 +439,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
                         .toLocalDate()
                     val marker = if (sessionDate == today) "*" else "-"
                     appendLine(
-                        "$marker id=${session.sessionId}, endedAt=${session.endedAtEpochMillis}, studyMinutes=${session.studyMinutes}, interruptionCount=${session.interruptionCount}, interruptedMinutes=${session.interruptedMinutes}, completedSessions=${session.completedSessions}, status=${session.status}, mode=${session.mode}, note=${session.note}"
+                        "$marker id=${session.sessionId}, endedAt=${session.endedAtEpochMillis}, studyMinutes=${session.studyMinutes}, interruptionCount=${session.interruptionCount}, interruptedSeconds=${session.interruptedSeconds}, completedSessions=${session.completedSessions}, status=${session.status}, mode=${session.mode}, note=${session.note}"
                     )
                 }
             }
@@ -534,7 +534,7 @@ class FirebaseDebugActivity : AppCompatActivity() {
             userId = uidText.text.toString().removePrefix("uid: ").trim(),
             avatarId = avatarId
         )
-        avatarPreviewImage.setImageResource(AvatarAssets.getAvatarResId(resolvedAvatarId))
+        AvatarAssets.bindAvatar(avatarPreviewImage, resolvedAvatarId)
     }
 
 }
@@ -552,7 +552,7 @@ object SessionDebugParser {
                 val parts = line.split("|", limit = 9).map { it.trim() }
                 if (parts.size != 9) {
                     throw IllegalArgumentException(
-                        "Session line ${index + 1} must have 9 pipe-separated values: sessionId|endedAtEpochMillis|studyMinutes|interruptionCount|interruptedMinutes|completedSessions|status|mode|note"
+                        "Session line ${index + 1} must have 9 pipe-separated values: sessionId|endedAtEpochMillis|studyMinutes|interruptionCount|interruptedSeconds|completedSessions|status|mode|note"
                     )
                 }
 
@@ -564,8 +564,8 @@ object SessionDebugParser {
                         ?: throw IllegalArgumentException("Session line ${index + 1} has invalid studyMinutes."),
                     interruptionCount = parts[3].toLongOrNull()
                         ?: throw IllegalArgumentException("Session line ${index + 1} has invalid interruptionCount."),
-                    interruptedMinutes = parts[4].toLongOrNull()
-                        ?: throw IllegalArgumentException("Session line ${index + 1} has invalid interruptedMinutes."),
+                    interruptedSeconds = parts[4].toLongOrNull()
+                        ?: throw IllegalArgumentException("Session line ${index + 1} has invalid interruptedSeconds."),
                     completedSessions = parts[5].toLongOrNull()
                         ?: throw IllegalArgumentException("Session line ${index + 1} has invalid completedSessions."),
                     status = runCatching { StudySessionStatus.valueOf(parts[6].uppercase()) }
@@ -589,7 +589,7 @@ object SessionDebugParser {
                 session.endedAtEpochMillis,
                 session.studyMinutes,
                 session.interruptionCount,
-                session.interruptedMinutes,
+                session.interruptedSeconds,
                 session.completedSessions,
                 session.status.name,
                 session.mode.name,

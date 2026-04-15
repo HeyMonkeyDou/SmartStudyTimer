@@ -7,15 +7,16 @@ import android.view.LayoutInflater
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import java.time.LocalDate
+import android.graphics.Color
 
-class Monitor : Fragment() {
+class Today : Fragment() {
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val view = inflater.inflate(R.layout.fragment_monitor, container, false)
+        val view = inflater.inflate(R.layout.fragment_today, container, false)
 
         // Get repository instance
         val repo = StatisticsRepository.getInstance(requireContext())
@@ -35,17 +36,23 @@ class Monitor : Fragment() {
 
         // Set Date
         val today = LocalDate.now()
-        tvDate.text = "Today: ${today.month} ${today.dayOfMonth}, ${today.year}"
+        tvDate.text = "${today.month} ${today.dayOfMonth}, ${today.year}"
 
-        // Convert focus score → stars
+        // Convert focus score →
         val stars = when {
-            todayStats.focusScore >= 80 -> "⭐⭐⭐⭐⭐"
-            todayStats.focusScore >= 60 -> "⭐⭐⭐⭐"
-            todayStats.focusScore >= 40 -> "⭐⭐⭐"
-            todayStats.focusScore >= 20 -> "⭐⭐"
-            else -> "⭐"
+            todayStats.focusScore >= 80 -> "★★★★★"
+            todayStats.focusScore >= 60 -> "★★★★"
+            todayStats.focusScore >= 40 -> "★★★"
+            todayStats.focusScore >= 20 -> "★★"
+            todayStats.focusScore >= 1 -> "★"
+            else -> "☆☆☆☆☆"
+        }
+        val starColor = when {
+            todayStats.focusScore > 0 -> Color.parseColor("#FFCC00")
+            else -> Color.parseColor("#AAAAAA")
         }
         tvStars.text = stars
+        tvStars.setTextColor(starColor)
 
         // Focus Level text
         val focusLevel = when {
@@ -53,24 +60,30 @@ class Monitor : Fragment() {
             todayStats.focusScore >= 60 -> "Good"
             todayStats.focusScore >= 40 -> "Average"
             todayStats.focusScore >= 20 -> "Poor"
-            else -> "Very Poor"
+            todayStats.focusScore >= 1 -> "Very Poor"
+            else -> "N/A"
         }
         tvFocusLevel.text = "Focus Level: $focusLevel"
 
         // Convert minutes → HH:MM
-        val hours = todayStats.studyMinutes / 60
-        val minutes = todayStats.studyMinutes % 60
-        tvSessionTime.text = "Session Time: %02d:%02d".format(hours, minutes)
+        tvSessionTime.text = "Session Time: ${formatDuration(todayStats.studyMinutes * 60)}"
 
         tvInterruptedCount.text = "Interrupted Count: ${todayStats.interruptionCount}"
 
         // Mapping data model → UI meaning
         val pickupCount = todayStats.interruptionCount
-        val phoneUseMinutes = todayStats.interruptedMinutes
+        val phoneUseSeconds = todayStats.interruptedSeconds
 
         tvPickupCount.text = "Pickup Count: $pickupCount"
-        tvPhoneUseCount.text = "Phone-use Time: $phoneUseMinutes min"
+        tvPhoneUseCount.text = "Phone-use Time: ${formatDuration(phoneUseSeconds)}"
 
         return view
+    }
+
+    private fun formatDuration(totalSeconds: Long): String {
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        return "${hours}h ${minutes}m ${seconds}s"
     }
 }

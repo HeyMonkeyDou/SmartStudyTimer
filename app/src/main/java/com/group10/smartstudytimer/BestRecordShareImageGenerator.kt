@@ -2,7 +2,6 @@ package com.group10.smartstudytimer
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
@@ -36,7 +35,7 @@ object BestRecordShareImageGenerator {
         drawTexts(canvas, displayName, bestRecord)
 
         val shareDirectory = File(context.cacheDir, "shares").apply { mkdirs() }
-        val imageFile = File(shareDirectory, "best_record_share.png")
+        val imageFile = File(shareDirectory, "today_record_share.png")
         FileOutputStream(imageFile).use { output ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
         }
@@ -94,10 +93,7 @@ object BestRecordShareImageGenerator {
     }
 
     private fun drawAvatar(context: Context, canvas: Canvas, avatarId: String) {
-        val avatarBitmap = BitmapFactory.decodeResource(
-            context.resources,
-            AvatarAssets.getAvatarResId(avatarId)
-        )
+        val avatarBitmap = AvatarAssets.getAvatarBitmap(context, avatarId)
         val avatarSize = 280f
         val centerX = WIDTH / 2f
         val centerY = 500f
@@ -172,7 +168,7 @@ object BestRecordShareImageGenerator {
             textSize = 48f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("Best study record", WIDTH / 2f, 835f, subtitlePaint)
+        canvas.drawText("Today's study record", WIDTH / 2f, 835f, subtitlePaint)
 
         val scoreLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FF617085")

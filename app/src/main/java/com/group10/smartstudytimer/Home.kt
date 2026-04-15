@@ -11,6 +11,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.provider.Settings
@@ -21,6 +22,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import java.util.Locale
@@ -32,7 +34,86 @@ class Home : Fragment(), SensorEventListener {
         StatisticsRepository.getInstance(requireContext())
     }
 
-    private lateinit var homeContainer: LinearLayout
+    // ── Consolidated permission flow ─────────────────────────────────────────
+    private var permissionCallback: (() -> Unit)? = null
+
+    private val standardPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { checkSpecialPermissions() }
+
+    private val usageStatsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { checkOverlayAndFinish() }
+
+    private val overlayLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        permissionCallback?.invoke()
+        permissionCallback = null
+    }
+
+    /**
+     * Request all permissions needed for a study session in one consolidated flow.
+     * Standard runtime permissions (POST_NOTIFICATIONS, RECORD_AUDIO) are batched first,
+     * then special permissions (Usage Stats → Overlay) are handled sequentially.
+     * [onDone] is called once the flow completes (whether granted or skipped).
+     */
+    private fun requestAllPermissions(onDone: () -> Unit) {
+        permissionCallback = onDone
+        val needed = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            needed.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            needed.add(Manifest.permission.RECORD_AUDIO)
+        }
+        if (needed.isNotEmpty()) {
+            standardPermLauncher.launch(needed.toTypedArray())
+        } else {
+            checkSpecialPermissions()
+        }
+    }
+
+    private fun checkSpecialPermissions() {
+        if (!hasUsageStatsPermission()) {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Permission Required")
+                .setMessage("To detect app switching during your study session, please grant Usage Access permission in Settings.")
+                .setPositiveButton("Go to Settings") { _, _ ->
+                    usageStatsLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                }
+                .setNegativeButton("Skip") { _, _ -> checkOverlayAndFinish() }
+                .show()
+            return
+        }
+        checkOverlayAndFinish()
+    }
+
+    private fun checkOverlayAndFinish() {
+        if (!Settings.canDrawOverlays(requireContext())) {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Overlay Permission")
+                .setMessage("For an immediate warning when you switch apps, grant 'Display over other apps' permission.")
+                .setPositiveButton("Go to Settings") { _, _ ->
+                    overlayLauncher.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+                }
+                .setNegativeButton("Skip") { _, _ ->
+                    permissionCallback?.invoke()
+                    permissionCallback = null
+                }
+                .show()
+            return
+        }
+        permissionCallback?.invoke()
+        permissionCallback = null
+    }
+
+    private lateinit var rootLayout: LinearLayout
     private lateinit var radioGroupMode: RadioGroup
     private lateinit var radioNormal: RadioButton
     private lateinit var radioPomodoro: RadioButton
@@ -80,7 +161,6 @@ class Home : Fragment(), SensorEventListener {
     private lateinit var speechRecognizer: SpeechRecognizer
 
     private var interruptedTimeInMillis: Long = 0
-    private val interruptionPenaltyPerEvent: Long = 5 * 1000L
 
 
     override fun onCreateView(
@@ -110,7 +190,7 @@ class Home : Fragment(), SensorEventListener {
                     setupSession()
                 }
                 if (timeLeftInMillis > 0) {
-                    startTimer()
+                    requestAllPermissions { startTimer() }
                 }
             }
         }
@@ -132,7 +212,9 @@ class Home : Fragment(), SensorEventListener {
         // Check if the background service detected an app switch while we were away.
         if (DistractionDetectorService.distractionDetectedByService) {
             DistractionDetectorService.distractionDetectedByService = false
-            handleServiceDetectedDistraction()
+            handleServiceDetectedDistraction(
+                DistractionDetectorService.consumeInterruptionDurationMillis()
+            )
         }
     }
 
@@ -142,7 +224,7 @@ class Home : Fragment(), SensorEventListener {
     }
 
     private fun bindViews(view: View) {
-        homeContainer = view.findViewById(R.id.homeContainer)
+        rootLayout = view.findViewById(R.id.rootLayout)
         radioGroupMode = view.findViewById(R.id.radioGroupMode)
         radioNormal = view.findViewById(R.id.radioNormal)
         radioPomodoro = view.findViewById(R.id.radioPomodoro)
@@ -247,7 +329,7 @@ class Home : Fragment(), SensorEventListener {
             override fun onTick(millisUntilFinished: Long) {
                 timeLeftInMillis = millisUntilFinished
                 updateTimerText()
-                if (isPomodoroMode && !isBreakTime) {
+                if (!isBreakTime) {
                     updateServiceNotification()
                 }
             }
@@ -293,10 +375,13 @@ class Home : Fragment(), SensorEventListener {
                 updateInputVisibility()
                 updateButtons()
                 updateUIState()
+
+                (requireActivity() as MainActivity).setBottomNavVisibility(true)
             }
         }.start()
 
         timerRunning = true
+        (requireActivity() as MainActivity).setBottomNavVisibility(false)
 
         // Hide inputs and dismiss keyboard so they don't reappear when returning from another app
         updateInputVisibility()
@@ -309,9 +394,11 @@ class Home : Fragment(), SensorEventListener {
             accelerometer?.let { sensor ->
                 sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
             }
-            checkAndRequestPermissions()
         }
         startDistractionService()
+        // Push an immediate notification update so the lock screen shows correct
+        // data from the very first second (not the placeholder "00:00:00").
+        updateServiceNotification()
 
         updateButtons()
         updateUIState()
@@ -328,7 +415,7 @@ class Home : Fragment(), SensorEventListener {
             StudySessionRecord(
                 studyMinutes = studyMinutes,
                 interruptionCount = distractionCount.toLong(),
-                interruptedMinutes = interruptedTimeInMillis / 60000L,
+                interruptedSeconds = interruptedTimeInMillis / 1000L,
                 completedSessions = if (isPomodoroMode) totalRounds.toLong() else 1L,
                 status = StudySessionStatus.COMPLETED,
                 mode = if (isPomodoroMode) StudySessionMode.POMODORO else StudySessionMode.NORMAL
@@ -346,11 +433,11 @@ class Home : Fragment(), SensorEventListener {
         updateUIState()
     }
 
-    fun registerDistraction() {
+    fun registerDistraction(interruptionDurationMillis: Long = 0L) {
         if (!isPomodoroMode || sessionInvalidated) return
 
         distractionCount++
-        interruptedTimeInMillis += interruptionPenaltyPerEvent
+        interruptedTimeInMillis += interruptionDurationMillis.coerceAtLeast(0L)
 
         if (distractionCount >= distractionLimit) {
             sessionInvalidated = true
@@ -394,6 +481,8 @@ class Home : Fragment(), SensorEventListener {
         updateInputVisibility()
         updateButtons()
         updateUIState()
+
+        (requireActivity() as MainActivity).setBottomNavVisibility(true)
     }
 
     private fun resetSessionState() {
@@ -406,6 +495,7 @@ class Home : Fragment(), SensorEventListener {
         stopDistractionService()
         updateTimerText()
         updateButtons()
+        (requireActivity() as MainActivity).setBottomNavVisibility(true)
     }
 
     private fun updateTimerText() {
@@ -426,24 +516,79 @@ class Home : Fragment(), SensorEventListener {
         btnStart.isEnabled = !timerRunning
         btnPause.isEnabled = timerRunning
         btnReset.isEnabled = timerRunning || timeLeftInMillis > 0
+
+        updateUIState()
     }
 
+    // Update primary color (color used on buttons)
+    private fun updatePrimaryColor(colorHex: String) {
+        val color = Color.parseColor(colorHex)
+
+        val enabledColor = color
+        val disabledColor = Color.parseColor("#BDBDBD") // for disabled buttons
+
+        // Buttons Colors
+        btnStart.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            if (btnStart.isEnabled) enabledColor else disabledColor
+        )
+
+        btnPause.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            if (btnPause.isEnabled) enabledColor else disabledColor
+        )
+
+        btnReset.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            if (btnReset.isEnabled) enabledColor else disabledColor
+        )
+
+        btnVoiceCommand.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            if (btnVoiceCommand.isEnabled) enabledColor else disabledColor
+        )
+
+        // Radio buttons
+        val radioColorStateList = android.content.res.ColorStateList(
+            arrayOf(
+                intArrayOf(android.R.attr.state_checked),
+                intArrayOf(-android.R.attr.state_checked)
+            ),
+            intArrayOf(
+                enabledColor,  // checked
+                Color.GRAY     // unchecked
+            )
+        )
+
+        radioNormal.buttonTintList = radioColorStateList
+        radioPomodoro.buttonTintList = radioColorStateList
+    }
+
+    // Update color palette based on timer state
     private fun updateUIState() {
+        val activity = requireActivity() as MainActivity
+
         when {
             sessionInvalidated -> {
-                homeContainer.setBackgroundColor(Color.parseColor("#FFEBEE"))
+                rootLayout.setBackgroundColor(Color.parseColor("#FFEBEE"))
+                updatePrimaryColor("#95405B")
+                activity.updateBottomNavColor("#FFEBEE")
             }
             timerRunning && isBreakTime -> {
-                homeContainer.setBackgroundColor(Color.parseColor("#E3F2FD"))
+                rootLayout.setBackgroundColor(Color.parseColor("#E3F2FD"))
+                updatePrimaryColor("#006487")
+                activity.updateBottomNavColor("#E3F2FD")
             }
             timerRunning -> {
-                homeContainer.setBackgroundColor(Color.parseColor("#E8F5E9"))
+                rootLayout.setBackgroundColor(Color.parseColor("#E8F5E9"))
+                updatePrimaryColor("#1E6945")
+                activity.updateBottomNavColor("#E8F5E9")
             }
             isPomodoroMode -> {
-                homeContainer.setBackgroundColor(Color.parseColor("#FFF8E1"))
+                rootLayout.setBackgroundColor(Color.parseColor("#FFF8E1"))
+                updatePrimaryColor("#685D05")
+                activity.updateBottomNavColor("#FFF8E1")
             }
             else -> {
-                homeContainer.setBackgroundColor(Color.parseColor("#FEF7FF"))
+                rootLayout.setBackgroundColor(Color.parseColor("#F3EDF7"))
+                updatePrimaryColor("#6050A0")
+                activity.updateBottomNavColor("#F3EDF7")
             }
         }
     }
@@ -470,13 +615,14 @@ class Home : Fragment(), SensorEventListener {
     }
 
     private fun showMovementWarning() {
+        val interruptionStartedAt = System.currentTimeMillis()
         pauseTimer()
         AlertDialog.Builder(requireContext())
             .setTitle("⚠️ Warning：Movement detected")
             .setMessage("Please put down your phone, stay focused! Distraction will be recorded")
             .setCancelable(false)
             .setPositiveButton("Done") { dialog, _ ->
-                registerDistraction()
+                registerDistraction(System.currentTimeMillis() - interruptionStartedAt)
                 if (!sessionInvalidated) {
                     startTimer()
                 }
@@ -487,9 +633,9 @@ class Home : Fragment(), SensorEventListener {
 
     // ── App-switch detection via DistractionDetectorService ──────────────────
 
-    private fun handleServiceDetectedDistraction() {
+    private fun handleServiceDetectedDistraction(interruptionDurationMillis: Long) {
         if (!isPomodoroMode || sessionInvalidated) return
-        registerDistraction()
+        registerDistraction(interruptionDurationMillis)
         // Restart service polling for the next potential distraction
         if (!sessionInvalidated) {
             startDistractionService()
@@ -512,7 +658,7 @@ class Home : Fragment(), SensorEventListener {
 
     private fun updateServiceNotification() {
         val totalSeconds = timeLeftInMillis / 1000
-        val hours = totalSeconds / 3600
+        val hours   = totalSeconds / 3600
         val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
         val timeText = if (hours > 0) {
@@ -520,11 +666,20 @@ class Home : Fragment(), SensorEventListener {
         } else {
             String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
         }
-        val label = "Round $currentRound / $totalRounds"
+
+        // Progress: how far through the current phase (0-1000)
+        val progress = if (initialTimeInMillis > 0) {
+            ((initialTimeInMillis - timeLeftInMillis) * 1000L / initialTimeInMillis).toInt()
+        } else 0
+
         Intent(requireContext(), DistractionDetectorService::class.java).apply {
             action = DistractionDetectorService.ACTION_UPDATE_TIME
-            putExtra(DistractionDetectorService.EXTRA_TIME_TEXT, timeText)
-            putExtra(DistractionDetectorService.EXTRA_LABEL, label)
+            putExtra(DistractionDetectorService.EXTRA_TIME_TEXT,         timeText)
+            putExtra(DistractionDetectorService.EXTRA_LABEL,             "Round $currentRound / $totalRounds")
+            putExtra(DistractionDetectorService.EXTRA_DISTRACTION_COUNT, distractionCount)
+            // Non-zero limit only in Pomodoro study rounds; Normal mode passes 0 → hides counter
+            putExtra(DistractionDetectorService.EXTRA_DISTRACTION_LIMIT, if (isPomodoroMode) distractionLimit else 0)
+            putExtra(DistractionDetectorService.EXTRA_PROGRESS,          progress)
         }.also { requireContext().startService(it) }
     }
 
@@ -536,30 +691,6 @@ class Home : Fragment(), SensorEventListener {
             requireActivity().packageName
         )
         return mode == AppOpsManager.MODE_ALLOWED
-    }
-
-    private fun checkAndRequestPermissions() {
-        if (!hasUsageStatsPermission()) {
-            AlertDialog.Builder(requireContext())
-                .setTitle("Permission Required")
-                .setMessage("To detect app switching during your study session, please grant Usage Access permission in Settings.")
-                .setPositiveButton("Go to Settings") { _, _ ->
-                    startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-            return
-        }
-        if (!Settings.canDrawOverlays(requireContext())) {
-            AlertDialog.Builder(requireContext())
-                .setTitle("Overlay Permission")
-                .setMessage("For an immediate warning when you switch apps, grant 'Display over other apps' permission.")
-                .setPositiveButton("Go to Settings") { _, _ ->
-                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
-                }
-                .setNegativeButton("Skip", null)
-                .show()
-        }
     }
 
     // Relevant methods and variables for voice control

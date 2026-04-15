@@ -47,85 +47,57 @@ class RegisterActivity : AppCompatActivity() {
         val confirmPassword = confirmPasswordField.text.toString()
 
         if (!validateInputs(username, email, password, confirmPassword)) return
-
         setLoadingState(true)
 
-        // Step 1: create Firebase Auth user first (so we're authenticated for Firestore queries)
+        // Step 1: create Auth user first (so we're authenticated for Firestore queries)
         authRepository.createUserWithEmailAndPassword(
             email = email,
             password = password,
             onSuccess = {
-                // Step 2: now authenticated — check username uniqueness
+                // Step 2: check username uniqueness while authenticated
                 firebaseRepository.isUsernameAvailable(
                     username = username,
                     onResult = { available ->
                         if (!available) {
-                            // Username taken — delete the Auth user we just created and bail
                             authRepository.deleteCurrentUser {
-                                showError(getString(R.string.username_taken))
+                                showError("This username is already taken. Please choose another.")
                                 setLoadingState(false)
                             }
                             return@isUsernameAvailable
                         }
-                        // Step 3: username is free — save profile to Firestore
-                        firebaseRepository.saveCurrentUserProfile(
-                            displayName = username,
-                            totalFocusMinutes = 0,
-                            avatarId = "",
+                        // Step 3: save profile with username
+                        firebaseRepository.updateUsername(
                             username = username,
                             onSuccess = { openMainScreen() },
                             onError = { error ->
-                                showError(error.message ?: getString(R.string.register_failed))
+                                showError(error.message ?: "Registration failed.")
                                 setLoadingState(false)
                             }
                         )
                     },
                     onError = { error ->
-                        // Firestore query failed — delete the Auth user and bail
                         authRepository.deleteCurrentUser {
-                            showError(error.message ?: getString(R.string.register_failed))
+                            showError(error.message ?: "Registration failed.")
                             setLoadingState(false)
                         }
                     }
                 )
             },
             onError = { error ->
-                showError(error.message ?: getString(R.string.register_failed))
+                showError(error.message ?: "Registration failed.")
                 setLoadingState(false)
             }
         )
     }
 
     private fun validateInputs(
-        username: String,
-        email: String,
-        password: String,
-        confirmPassword: String
+        username: String, email: String, password: String, confirmPassword: String
     ): Boolean {
-        if (username.isBlank()) {
-            showError(getString(R.string.username_required))
-            return false
-        }
-        if (username.length < 3) {
-            showError(getString(R.string.username_too_short))
-            return false
-        }
-        if (!username.matches(Regex("[a-zA-Z0-9_]+"))) {
-            showError(getString(R.string.username_invalid_chars))
-            return false
-        }
-        if (email.isBlank()) {
-            showError(getString(R.string.email_required))
-            return false
-        }
-        if (password.length < 6) {
-            showError(getString(R.string.password_too_short))
-            return false
-        }
-        if (password != confirmPassword) {
-            showError(getString(R.string.passwords_do_not_match))
-            return false
-        }
+        if (username.length < 3) { showError("Username must be at least 3 characters."); return false }
+        if (!username.matches(Regex("[a-zA-Z0-9_]+"))) { showError("Username: letters, numbers and _ only."); return false }
+        if (email.isBlank()) { showError("Please enter your email address."); return false }
+        if (password.length < 6) { showError("Password must be at least 6 characters."); return false }
+        if (password != confirmPassword) { showError("Passwords do not match."); return false }
         return true
     }
 
@@ -144,12 +116,10 @@ class RegisterActivity : AppCompatActivity() {
     }
 
     private fun openMainScreen() {
-        Toast.makeText(this, getString(R.string.register_success), Toast.LENGTH_SHORT).show()
-        startActivity(
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }
-        )
+        Toast.makeText(this, "Account created successfully!", Toast.LENGTH_SHORT).show()
+        startActivity(Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        })
         finish()
     }
 }

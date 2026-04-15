@@ -9,36 +9,8 @@
     <string name="session_expired">Your session expired. Please sign in again.</string>
     <string name="profile_title">Profile</string>
     <string name="profile_email_label">Email</string>
-    <string name="profile_uid_label">UID</string>
     <string name="profile_signed_out">Signed out.</string>
     <string name="sign_out">Sign out</string>
-
-    <!-- Registration / Email Login -->
-    <string name="register_account">Register Account</string>
-    <string name="sign_in_with_email">Sign in with Email</string>
-    <string name="or_continue_with">— or continue with —</string>
-    <string name="register_title">Create Account</string>
-    <string name="email_login_title">Sign In</string>
-    <string name="username_hint">Username</string>
-    <string name="username_helper">3–20 characters, letters, numbers and _ only</string>
-    <string name="email_hint">Email address</string>
-    <string name="password_hint">Password</string>
-    <string name="confirm_password_hint">Confirm password</string>
-    <string name="register_button">Create Account</string>
-    <string name="sign_in_button">Sign In</string>
-    <string name="already_have_account">Already have an account? Sign in</string>
-    <string name="no_account_register">No account yet? Register</string>
-
-    <!-- Validation messages -->
-    <string name="username_required">Please enter a username.</string>
-    <string name="username_too_short">Username must be at least 3 characters.</string>
-    <string name="username_invalid_chars">Username can only contain letters, numbers and underscores.</string>
-    <string name="username_taken">This username is already taken. Please choose another.</string>
-    <string name="email_required">Please enter your email address.</string>
-    <string name="password_too_short">Password must be at least 6 characters.</string>
-    <string name="passwords_do_not_match">Passwords do not match.</string>
-    <string name="fill_all_fields">Please fill in all fields.</string>
-    <string name="register_success">Account created successfully!</string>
-    <string name="register_failed">Registration failed. Please try again.</string>
-    <string name="login_failed">Sign in failed. Check your email and password.</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>

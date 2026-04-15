@@ -6,6 +6,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.firebase.auth.FirebaseAuth
+import android.view.View
 
 class MainActivity : AppCompatActivity() {
 
@@ -37,6 +38,11 @@ class MainActivity : AppCompatActivity() {
         loadFragment(Home())
 
         bottomNav.setOnItemSelectedListener { item ->
+
+            if (item.itemId != R.id.home) {
+                resetBottomNavColor()
+            }
+
             when (item.itemId) {
 
                 R.id.home -> {
@@ -49,8 +55,13 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
 
-                R.id.monitor -> {
-                    loadFragment(Monitor())
+                R.id.today -> {
+                    loadFragment(Today())
+                    true
+                }
+
+                R.id.friends -> {
+                    loadFragment(Friends())
                     true
                 }
 
@@ -68,5 +79,31 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragmentContainer, fragment)
             .commit()
+    }
+
+    fun setBottomNavVisibility(visible: Boolean) {
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNavigationView)
+        bottomNav.visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
+    fun updateBottomNavColor(colorHex: String) {
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNavigationView)
+        val color = android.graphics.Color.parseColor(colorHex)
+
+        // Background color
+        bottomNav.setBackgroundColor(color)
+    }
+
+    fun resetBottomNavColor() {
+        updateBottomNavColor("#F3EDF7")
+    }
+
+    fun setFriendsBadge(visible: Boolean) {
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNavigationView) ?: return
+        if (visible) {
+            bottomNav.getOrCreateBadge(R.id.friends).isVisible = true
+        } else {
+            bottomNav.removeBadge(R.id.friends)
+        }
     }
 }
