@@ -15,6 +15,7 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
+import java.time.LocalDate
 
 class Profile : Fragment() {
 
@@ -34,6 +35,7 @@ class Profile : Fragment() {
         val levelBadgeText = view.findViewById<TextView>(R.id.tvLevelBadge)
         val signOutButton = view.findViewById<Button>(R.id.signOutButton)
         val editProfileButton = view.findViewById<Button>(R.id.btnEditProfile)
+        val tvBestDate = view.findViewById<TextView>(R.id.tvBestDate)
 
         val openBadgeRulesDialog = {
             showBadgeRulesDialog()
@@ -106,14 +108,16 @@ class Profile : Fragment() {
         )
 
         // Best score
+        val today = LocalDate.now()
+        tvBestDate.text = "${today.month} ${today.dayOfMonth}, ${today.year}"
+
         val bestRecord = repo.getTodayStudyRecord()
 
         if (bestRecord != null) {
             view.findViewById<TextView>(R.id.tvBestScore).text =
                 bestRecord.focusScore.toString()
-
-            view.findViewById<TextView>(R.id.tvBestDate).text =
-                bestRecord.completedAt.toString()
+        } else {
+            view.findViewById<TextView>(R.id.tvBestScore).text = "N/A"
         }
 
         // Records sharing

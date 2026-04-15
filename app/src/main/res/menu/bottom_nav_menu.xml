@@ -5,14 +5,14 @@
         android:icon="@drawable/ic_alarm"/>
 
     <item
+        android:id="@+id/today"
+        android:title="Today"
+        android:icon="@drawable/ic_dark_mode"/>
+
+    <item
         android:id="@+id/statistics"
         android:title="Statistics"
         android:icon="@drawable/ic_today"/>
-
-    <item
-        android:id="@+id/monitor"
-        android:title="Focus Monitor"
-        android:icon="@drawable/ic_dark_mode"/>
 
     <item
         android:id="@+id/friends"

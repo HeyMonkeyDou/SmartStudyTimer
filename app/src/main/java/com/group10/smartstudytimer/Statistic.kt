@@ -59,8 +59,13 @@ class Statistic : Fragment() {
 
         // Score
         val score = daily.focusScore
-        tvScore.text = score.toString()
-        progressScore.progress = score.toInt()
+
+        val dscore = when {
+            score > 0 -> score.toString()
+            else -> "N/A"
+        }
+        tvScore.text = dscore
+        progressScore.progress = daily.focusScore.toInt()
 
         // Session length
         tvSessionLength.text = "Session length: ${formatDuration(daily.studyMinutes * 60)}"

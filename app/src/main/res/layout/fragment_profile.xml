@@ -176,19 +176,19 @@
                         android:orientation="vertical"
                         android:paddingStart="24dp">
 
-                        <!-- Header of Achieved date -->
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Best study records"
-                            android:layout_marginBottom="4dp" />
-
-                        <!-- Achieved date -->
+                        <!-- Date -->
                         <TextView
                             android:id="@+id/tvBestDate"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:textSize="24sp"
+                            android:layout_marginBottom="4dp" />
+
+                        <!-- Title -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Today's best session"
+                            android:textSize="22sp"
                             android:textStyle="bold"
                             android:layout_marginBottom="4dp" />
 
