@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="36dp"
-        app:title="Focus Monitor" />
+        app:title="Today" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -28,13 +28,25 @@
             android:gravity="center"
             android:layout_marginBottom="32dp">
 
-            <TextView
-                android:id="@+id/tvDate"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Today:"
-                android:textStyle="bold"
-                android:layout_marginBottom="32dp"/>
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginBottom="16dp">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_today"
+                    android:layout_marginEnd="6dp"/>
+
+                <TextView
+                    android:id="@+id/tvDate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceTitleMedium"/>
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tvStars"

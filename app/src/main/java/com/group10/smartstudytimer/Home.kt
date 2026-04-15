@@ -562,26 +562,33 @@ class Home : Fragment(), SensorEventListener {
 
     // Update color palette based on timer state
     private fun updateUIState() {
+        val activity = requireActivity() as MainActivity
+
         when {
             sessionInvalidated -> {
                 rootLayout.setBackgroundColor(Color.parseColor("#FFEBEE"))
                 updatePrimaryColor("#95405B")
+                activity.updateBottomNavColor("#FFEBEE")
             }
             timerRunning && isBreakTime -> {
                 rootLayout.setBackgroundColor(Color.parseColor("#E3F2FD"))
                 updatePrimaryColor("#006487")
+                activity.updateBottomNavColor("#E3F2FD")
             }
             timerRunning -> {
                 rootLayout.setBackgroundColor(Color.parseColor("#E8F5E9"))
                 updatePrimaryColor("#1E6945")
+                activity.updateBottomNavColor("#E8F5E9")
             }
             isPomodoroMode -> {
                 rootLayout.setBackgroundColor(Color.parseColor("#FFF8E1"))
                 updatePrimaryColor("#685D05")
+                activity.updateBottomNavColor("#FFF8E1")
             }
             else -> {
-                rootLayout.setBackgroundColor(Color.parseColor("#FEF7FF"))
+                rootLayout.setBackgroundColor(Color.parseColor("#F3EDF7"))
                 updatePrimaryColor("#6050A0")
+                activity.updateBottomNavColor("#F3EDF7")
             }
         }
     }

@@ -38,6 +38,11 @@ class MainActivity : AppCompatActivity() {
         loadFragment(Home())
 
         bottomNav.setOnItemSelectedListener { item ->
+
+            if (item.itemId != R.id.home) {
+                resetBottomNavColor()
+            }
+
             when (item.itemId) {
 
                 R.id.home -> {
@@ -50,8 +55,8 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
 
-                R.id.monitor -> {
-                    loadFragment(Monitor())
+                R.id.today -> {
+                    loadFragment(Today())
                     true
                 }
 
@@ -79,6 +84,18 @@ class MainActivity : AppCompatActivity() {
     fun setBottomNavVisibility(visible: Boolean) {
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNavigationView)
         bottomNav.visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
+    fun updateBottomNavColor(colorHex: String) {
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNavigationView)
+        val color = android.graphics.Color.parseColor(colorHex)
+
+        // Background color
+        bottomNav.setBackgroundColor(color)
+    }
+
+    fun resetBottomNavColor() {
+        updateBottomNavColor("#F3EDF7")
     }
 
     fun setFriendsBadge(visible: Boolean) {
