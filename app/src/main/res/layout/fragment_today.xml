@@ -39,32 +39,31 @@
                     android:layout_width="20dp"
                     android:layout_height="20dp"
                     android:src="@drawable/ic_today"
-                    android:layout_marginEnd="6dp"/>
+                    android:layout_marginEnd="6dp" />
 
                 <TextView
                     android:id="@+id/tvDate"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"/>
+                    android:textAppearance="?attr/textAppearanceTitleMedium" />
             </LinearLayout>
 
             <TextView
                 android:id="@+id/tvStars"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="⭐⭐⭐⭐⭐"
-                android:textSize="32sp"
+                android:textSize="48sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="32dp"/>
+                android:layout_marginBottom="32dp"
+                android:textColor="#FF0000" />
 
             <TextView
                 android:id="@+id/tvFocusLevel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Focus Level:"
                 android:textSize="26sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="32dp"/>
+                android:layout_marginBottom="32dp" />
 
         </LinearLayout>
 
@@ -79,29 +78,25 @@
                 android:id="@+id/tvSessionTime"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Session Time:"
-                android:layout_marginBottom="32dp"/>
+                android:layout_marginBottom="32dp" />
 
             <TextView
                 android:id="@+id/tvInterruptedCount"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Interrupted Count:"
-                android:layout_marginBottom="32dp"/>
+                android:layout_marginBottom="32dp" />
 
             <TextView
                 android:id="@+id/tvPickupCount"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Pickup Count:"
-                android:layout_marginBottom="32dp"/>
+                android:layout_marginBottom="32dp" />
 
             <TextView
                 android:id="@+id/tvPhoneUseCount"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Phone-use Count:"
-                android:layout_marginBottom="32dp"/>
+                android:layout_marginBottom="32dp" />
 
         </LinearLayout>
 

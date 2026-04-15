@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import java.time.LocalDate
+import android.graphics.Color
 
 class Today : Fragment() {
 
@@ -37,16 +38,21 @@ class Today : Fragment() {
         val today = LocalDate.now()
         tvDate.text = "${today.month} ${today.dayOfMonth}, ${today.year}"
 
-        // Convert focus score → stars
+        // Convert focus score →
         val stars = when {
-            todayStats.focusScore >= 80 -> "⭐⭐⭐⭐⭐"
-            todayStats.focusScore >= 60 -> "⭐⭐⭐⭐"
-            todayStats.focusScore >= 40 -> "⭐⭐⭐"
-            todayStats.focusScore >= 20 -> "⭐⭐"
-            todayStats.focusScore >= 1 -> "⭐"
-            else -> "❓❓❓❓❓"
+            todayStats.focusScore >= 80 -> "★★★★★"
+            todayStats.focusScore >= 60 -> "★★★★"
+            todayStats.focusScore >= 40 -> "★★★"
+            todayStats.focusScore >= 20 -> "★★"
+            todayStats.focusScore >= 1 -> "★"
+            else -> "☆☆☆☆☆"
+        }
+        val starColor = when {
+            todayStats.focusScore > 0 -> Color.parseColor("#FFCC00")
+            else -> Color.parseColor("#AAAAAA")
         }
         tvStars.text = stars
+        tvStars.setTextColor(starColor)
 
         // Focus Level text
         val focusLevel = when {
