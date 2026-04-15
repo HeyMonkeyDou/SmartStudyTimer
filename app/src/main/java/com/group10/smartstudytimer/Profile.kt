@@ -1,6 +1,5 @@
 package com.group10.smartstudytimer
 
-import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
@@ -159,26 +158,6 @@ class Profile : Fragment() {
 
                 renderGlobalLeaderboard(globalLeaderboardContainer, allUsers)
             },
-            onError = { tvIncomingRequests.text = "Failed to load requests" }
-        )
-    }
-
-    private fun loadFriendsComparison(tvFriendsComparison: TextView) {
-        firebaseRepository.loadFriends(
-            onSuccess = { friends ->
-                if (friends.isEmpty()) {
-                    tvFriendsComparison.text = "No friends yet"
-                } else {
-                    val sortedFriends = friends.sortedByDescending { it.bestFocusScore }
-                    val text = buildString {
-                        append("Friends Leaderboard\n\n")
-                        sortedFriends.forEachIndexed { index, friend ->
-                            val nameLabel = friend.username.ifBlank { friend.displayName }
-                            append("${index + 1}. $nameLabel — Best Score: ${friend.bestFocusScore}, Total Minutes: ${friend.totalFocusMinutes}\n")
-                        }
-                    }
-                    tvFriendsComparison.text = text
-                }
             onError = {
                 showLeaderboardError(globalLeaderboardContainer, "Failed to load leaderboard")
             }
@@ -290,8 +269,6 @@ class Profile : Fragment() {
                 badgeView.contentDescription = "$displayName ${streakLevel.label} level"
                 levelView.text = streakLevel.label
             },
-            onError = { tvFriendsComparison.text = "Failed to load friends" }
-        )
             onError = {
                 if (!isAdded) return@loadStudySessions
             }

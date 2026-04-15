@@ -31,7 +31,6 @@
         android:text="@string/auth_subtitle"
         android:textAlignment="center" />
 
-    <!-- New: Register with email/username -->
     <Button
         android:id="@+id/registerAccountButton"
         style="@style/Widget.Material3.Button"

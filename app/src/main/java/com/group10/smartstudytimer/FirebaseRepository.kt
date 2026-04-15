@@ -49,7 +49,6 @@ class FirebaseRepository(
         displayName: String,
         totalFocusMinutes: Long,
         avatarId: String,
-        username: String = "",
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
@@ -60,7 +59,6 @@ class FirebaseRepository(
                         uid = uid,
                         displayName = displayName.ifBlank { uid.take(6) },
                         email = auth.currentUser?.email.orEmpty(),
-                        username = username,
                         totalFocusMinutes = totalFocusMinutes,
                         avatarId = AvatarAssets.resolveAvatarId(uid, avatarId)
                     ),
@@ -543,95 +541,6 @@ class FirebaseRepository(
         batch.commit()
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener { onError(it) }
-    }
-
-    fun updateUsername(
-        username: String,
-        onSuccess: () -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        ensureSignedInUser(
-            onSuccess = { uid ->
-                firestore.collection(USERS_COLLECTION)
-                    .document(uid)
-                    .update(
-                        mapOf(
-                            "username" to username,
-                            "displayName" to username,
-                            "updatedAt" to FieldValue.serverTimestamp()
-                        )
-                    )
-                    .addOnSuccessListener { onSuccess() }
-                    .addOnFailureListener { onError(it) }
-            },
-            onError = onError
-        )
-    }
-
-    // Check if a username is still available (not taken by any existing user).
-    // Firestore requires a composite index on "username" for this query — create it on first run.
-    fun isUsernameAvailable(
-        username: String,
-        onResult: (Boolean) -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        firestore.collection(USERS_COLLECTION)
-            .whereEqualTo("username", username)
-            .limit(1)
-            .get()
-            .addOnSuccessListener { result -> onResult(result.isEmpty) }
-            .addOnFailureListener { onError(it) }
-    }
-
-    fun sendFriendRequestByUsername(
-        targetUsername: String,
-        onSuccess: () -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        ensureSignedInUser(
-            onSuccess = { currentUid ->
-                val currentUser = auth.currentUser
-                val currentDisplayName = currentUser?.displayName ?: currentUid.take(6)
-                val currentEmail = currentUser?.email ?: ""
-
-                firestore.collection(USERS_COLLECTION)
-                    .whereEqualTo("username", targetUsername)
-                    .limit(1)
-                    .get()
-                    .addOnSuccessListener { result ->
-                        if (result.isEmpty) {
-                            onError(Exception("User \"$targetUsername\" not found"))
-                            return@addOnSuccessListener
-                        }
-
-                        val targetDoc = result.documents.first()
-                        val targetUid = targetDoc.id
-
-                        if (targetUid == currentUid) {
-                            onError(Exception("You cannot add yourself"))
-                            return@addOnSuccessListener
-                        }
-
-                        val requestRef = firestore.collection(FRIEND_REQUESTS_COLLECTION).document()
-                        val payload = hashMapOf(
-                            "requestId" to requestRef.id,
-                            "fromUid" to currentUid,
-                            "fromDisplayName" to currentDisplayName,
-                            "fromEmail" to currentEmail,
-                            "toUid" to targetUid,
-                            "toEmail" to targetDoc.getString("email").orEmpty(),
-                            "status" to "pending",
-                            "createdAtEpochMillis" to System.currentTimeMillis()
-                        )
-
-                        requestRef.set(payload)
-                            .addOnSuccessListener { onSuccess() }
-                            .addOnFailureListener { onError(it) }
-                    }
-                    .addOnFailureListener { onError(it) }
-            },
-            onError = onError
-        )
     }
 
     fun loadFriends(

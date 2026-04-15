@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">SmartStudyTimer</string>
     <string name="auth_title">Sign in to continue</string>
-    <string name="auth_subtitle">Create an account or sign in to sync study sessions and leaderboard data.</string>
+    <string name="auth_subtitle">Use your Google account to sync study sessions and leaderboard data.</string>
     <string name="sign_in_with_google">Sign in with Google</string>
     <string name="signing_in">Signing in…</string>
     <string name="google_sign_in_not_configured">Google Sign-In is not configured. Add a Web OAuth client in Firebase and download the updated google-services.json.</string>
